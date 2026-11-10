@@ -1,0 +1,72 @@
+# One file describes the whole show. Every process reads it.
+choreography: encendido       # what loads at startup; switch any time from the Home page (dances made from songs live in library/)
+
+# Ports each process publishes on (ZeroMQ PUB). Everyone else subscribes.
+# Running everything on one laptop? Leave host as 127.0.0.1.
+bus:
+  host: 127.0.0.1
+  conductor: 5550
+  perception: 5551
+  robot_A: 5552
+  robot_B: 5553
+  dashboard: 5554             # the dashboard publishes conductor commands here
+
+dashboard:
+  http_port: 8080             # open http://localhost:8080
+  drift_warn_ms: 40           # warn when A and B disagree on show time by more than this
+  stale_after_s: 1.0          # a process counts as not publishing after this long
+
+conductor:
+  countdown_beats: 8          # robots hold their opening pose while you get into position
+  music: null                 # path to the track; show time 0 = first downbeat
+  first_downbeat_s: 0.0       # seconds into the audio file where bar 1 lands
+  audio_latency_s: 0.08       # how early to start the player so the downbeat lands on time
+  clock_hz: 100
+
+robots:
+  A:                          # Reachy on the CAMERA'S LEFT
+    host: localhost           # Lite over USB: reachy-mini-daemon -p /dev/cu.usbmodem5B7B0101971 --fastapi-port 8000
+    port: 8000
+    serial: /dev/cu.usbmodem5B7B0101971   # lets the dashboard's "Start everything" start this robot's daemon
+    latency_s: 0.160           # send moves this much early (measure with the clap test)
+    wake_on_start: true
+    sleep_on_end: false
+  B:                          # Reachy on the CAMERA'S RIGHT
+    host: localhost           # Lite over USB: reachy-mini-daemon -p /dev/cu.usbmodem5B7B0111871 --fastapi-port 8001
+    port: 8001
+    serial: /dev/cu.usbmodem5B7B0111871
+    latency_s: 0.220           # 40 ms more than A: B's motors measured ~35-40 ms slower (tools/measure_arrival.py)
+    wake_on_start: true
+    sleep_on_end: false
+
+control:
+  rate_hz: 50
+  lost_conductor_hold_s: 0.5  # freeze in place if the clock stops arriving
+  lost_conductor_rest_s: 3.0  # then ease to the rest pose
+
+# Shared by both robots. Signs verified on both real Lites (2026-11-10). Flip one if a move goes the wrong way.
+calibration:
+  yaw_deg: 40
+  body_deg: 30
+  pitch_deg: 25
+  z_mm_per_px: 0.5
+  yaw_left_sign: 1
+  roll_sign: 1
+  pitch_down_sign: 1
+  ant_right_out_sign: 1
+  ant_left_out_sign: -1
+
+perception:
+  camera: 0                   # OpenCV camera index, placed where the audience camera is
+  framing: upper              # upper: close-up from the chest up (dashboard camera); full: whole body in frame
+  mirror_image: false         # true if your webcam shows a mirrored image
+  stage_px_per_frame: 900     # dancer x: full image width maps to this many stage px
+  center_offset_px: 0         # nudge if the dancer's center mark isn't at image center
+  rate_hz: 30
+  lost_after_s: 0.7           # reactions fade out if the dancer isn't seen for this long
+  show_window: true
+
+reactive:
+  max_gaze_deg: 25            # how far gaze can bend the score's head yaw
+  event_decay_s: 0.6
+  echo_delay_beats: 1

@@ -1,0 +1,1064 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rehearse and Record · Reachoreo</title>
+<style>
+  :root {
+    --bg: #0d0c1c; --panel: #17152e; --panel2: #211e40; --line: #2f2a58; --text: #ede9ff; --dim: #a9a3cc;
+    --a: #7fe3ff; --b: #ffb35c; --me: #f27aa8; --ref: #f2b544; --ok: #3ddc84; --warn: #ffcc4d; --err: #ff6b6b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }   /* the hidden attribute must win over display: grid/flex rules */
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { display: flex; gap: 10px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0; } header h1 span { color: var(--dim); font-weight: 400; }
+  header a { color: var(--dim); font-size: 12px; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+  button, select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--dim); } button:disabled { opacity: .4; cursor: default; }
+  button.go { background: var(--ok); color: #06210f; border-color: var(--ok); font-weight: 600; }
+  label.tg { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--dim); cursor: pointer; }
+  .toast { font-size: 12px; color: var(--dim); min-width: 100px; }
+
+  /* the sketch: Reachy 1 | camera over choreography | Reachy 2, filling the screen */
+  .show { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(420px, 2.1fr) minmax(240px, 1fr);
+          gap: 14px; padding: 14px 16px; height: calc(100vh - 54px); min-height: 640px; }
+  .middle { display: grid; grid-template-rows: 1fr 1fr; gap: 14px; min-height: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px; min-width: 0; min-height: 0;
+           display: flex; flex-direction: column; position: relative; }
+  .ptitle { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; }
+  .ptitle h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: .01em; }
+  .ptitle .sub { color: var(--dim); font-size: 12px; }
+  .ptitle .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--err); margin-left: auto; align-self: center; } .ptitle .dot.on { background: var(--ok); }
+  .fill { position: relative; flex: 1; min-height: 0; border-radius: 12px; overflow: hidden; }
+  .fill canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* robot panels */
+  .robot.A h2 { color: var(--a); } .robot.B h2 { color: var(--b); }
+  .robot .fill { background: radial-gradient(120% 80% at 50% 20%, #2a2552, #141228); }
+  /* the robot's animation gets the room; its head camera is a strip under it (still 16:9 in the recordings) */
+  .pov { position: relative; height: clamp(84px, 22%, 170px); margin-top: 8px; border-radius: 10px; overflow: hidden; background: #000; flex: none; }
+  .pov video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .povlbl { position: absolute; left: 8px; top: 6px; font: 600 11px sans-serif; color: #fff; text-shadow: 0 1px 4px #000; }
+  .povmsg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 12px; }
+  .povswap { position: absolute; right: 6px; top: 4px; padding: 0 7px; font-size: 13px; background: #0008; }
+  .srcwrap { position: relative; }
+  .sources summary { cursor: pointer; list-style: none; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); font-size: 12px; color: var(--dim); }
+  .srclist { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 5; min-width: 270px; display: flex; flex-direction: column; gap: 6px;
+             background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; box-shadow: 0 8px 30px #0008; }
+  .rstats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; flex: none; }
+  .rstats .stat { padding: 5px 9px; border-radius: 8px; min-width: 0; }
+  .rstats .stat .top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+  .rstats .stat .k { font-size: 9px; letter-spacing: .06em; white-space: nowrap; }
+  .stat { background: var(--panel2); border-radius: 10px; padding: 8px 10px; }
+  .stat .k { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .07em; }
+  .stat .v { font: 700 18px var(--mono); }
+  .rstats .stat .v { font: 800 13px -apple-system, sans-serif; white-space: nowrap; }
+  .stat .s { font-size: 10.5px; color: var(--dim); line-height: 1.3; margin-top: 1px; min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rdo { font-size: 12px; color: var(--dim); margin-top: 6px; line-height: 1.4; min-height: 2.8em; flex: none;
+         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rdo b { color: var(--text); font-weight: 600; }
+  .react { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); font: 800 22px sans-serif; text-shadow: 0 2px 10px #000; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .react.on { opacity: 1; }
+
+  /* camera */
+  .cam { background: #000; outline: 3px solid transparent; transition: outline-color .08s; }
+  .camctl { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .camctl select, .camctl button { padding: 4px 8px; font-size: 12px; }
+  .caminfo { font: 11px var(--mono); color: var(--dim); }
+  #b-rec { padding: 4px 10px; } #b-rec.on { background: #5a1520; border-color: var(--err); color: #fff; }
+  .recdot { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font: 700 12px var(--mono); color: #fff; background: #c0263acc; padding: 2px 10px; border-radius: 99px; pointer-events: none; }
+  .cam.beat { outline-color: #ffffff44; } .cam.one { outline-color: var(--ref); }
+  .ov { position: absolute; left: 0; right: 0; pointer-events: none; padding: 10px 14px; text-shadow: 0 2px 8px #000; }
+  .ov.top { top: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .ov.bottom { bottom: 0; background: linear-gradient(transparent, #000d); }
+  .big { font: 800 52px/1 var(--mono); }
+  .phr { text-align: right; } .phr .n { font-size: 18px; font-weight: 700; } .phr .act { color: var(--dim); font-size: 12px; }
+  .match { font: 700 13px var(--mono); padding: 3px 9px; border-radius: 99px; background: #000a; margin-top: 6px; display: inline-block; }
+  .now { font-size: 15px; } .now b { color: var(--ref); font-size: 11px; letter-spacing: .1em; margin-right: 6px; }
+  .cue { margin-top: 3px; font-size: 17px; font-weight: 700; color: var(--ref); min-height: 1.4em; }
+  .cue.hit { color: var(--ok); } .cue.miss { color: var(--err); }
+  .msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--dim); padding: 20px; background: #000c; }
+  .msg button { margin-top: 10px; }
+  .ckey { display: flex; gap: 12px; font-size: 11px; color: var(--dim); } .ckey i { display: inline-block; width: 14px; border-top: 3px solid; vertical-align: middle; margin-right: 4px; }
+
+  /* choreography */
+  .choreo { background: #121722; }
+  .dots { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+  .dots i { width: 28px; height: 7px; border-radius: 4px; background: var(--panel2); }
+  .dots i.cur { background: var(--text); } .dots i.cuedot { box-shadow: 0 0 0 2px var(--ref); }
+
+  /* sync strip across the bottom of the middle column */
+  .verdict { font-weight: 800; font-size: 14px; }
+  .good { color: var(--ok); } .meh { color: var(--warn); } .bad { color: var(--err); } .na { color: var(--dim); }
+
+  /* below the show */
+  .more { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 0 16px 32px; }
+  .more h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 8px; font-weight: 600; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  #chart { width: 100%; height: 170px; display: block; background: var(--panel2); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 5px 6px; border-bottom: 1px solid #ffffff08; font-family: var(--mono); }
+  tr.now td { background: #f2b54418; }
+  .pill { padding: 1px 8px; border-radius: 99px; font-size: 11px; font-family: -apple-system, sans-serif; }
+  .pill.on { background: #173d29; color: var(--ok); } .pill.late, .pill.early { background: #3d3517; color: var(--warn); }
+  .pill.missed { background: #3d1717; color: var(--err); } .pill.upcoming { background: var(--panel2); color: var(--dim); } .pill.now { background: #f2b54433; color: var(--ref); }
+  .summary { margin-top: 10px; padding: 10px 12px; background: var(--panel2); border-radius: 8px; font-size: 13px; line-height: 1.6; }
+  .summary b { font-family: var(--mono); }
+
+  /* toolbar under the site nav */
+  .toolbar { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .toolbar .dance { display: flex; gap: 8px; align-items: baseline; margin-right: 6px; }
+  .toolbar .dance .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+  .toolbar .dance b { font-size: 18px; } .toolbar .dance a { font-size: 12px; color: var(--dim); }
+  .toolbar #range { max-width: 330px; }
+  button.go.big { font-size: 16px; padding: 8px 22px; }
+  .kbd { font: 11px var(--mono); color: var(--dim); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; }
+  .settings { position: relative; margin-left: auto; }
+  .settings summary { list-style: none; cursor: pointer; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+  .setlist { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 300px; display: flex; flex-direction: column; gap: 10px;
+             background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: 0 10px 40px #000a; }
+  .setlist label.tg { font-size: 13px; color: var(--text); }
+  .setlist select { width: 100%; }
+  .banner { margin: 12px 16px 0; padding: 10px 14px; border-radius: 12px; background: #3d3517; color: #ffe39a; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .banner button { background: var(--ok); color: #06210f; border-color: var(--ok); font-weight: 700; }
+  .banner[hidden] { display: none; }
+  .show { height: calc(100vh - 196px); min-height: 600px; }
+
+  /* the record dock: always on screen */
+  .recdock { position: sticky; bottom: 0; z-index: 20; display: flex; gap: 16px; align-items: center; padding: 12px 16px; background: #0b0a18f2; backdrop-filter: blur(8px);
+             border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .recbtn { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 800; padding: 10px 20px 10px 12px; border-radius: 99px; background: #2a1020; border: 2px solid #ff4d6d; color: #fff; }
+  .recbtn .ring { width: 26px; height: 26px; border-radius: 50%; background: #ff4d6d; box-shadow: 0 0 0 4px #ff4d6d33; transition: border-radius .15s; }
+  .recbtn.on { background: #ff4d6d; animation: pulse 1.4s infinite; } .recbtn.on .ring { border-radius: 5px; background: #fff; width: 20px; height: 20px; margin: 3px; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 8px #ff4d6d33; } }
+  .recmain { display: flex; flex-direction: column; gap: 7px; min-width: 0; flex: 1; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .presets button { padding: 4px 11px; font-size: 13px; border-radius: 99px; }
+  .presets button.on { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 700; }
+  .presets .custom { font-size: 12px; color: var(--dim); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); cursor: pointer; color: var(--dim); user-select: none; }
+  .chip input { display: none; } .chip:has(input:checked) { color: var(--text); border-color: var(--a); background: #7fe3ff14; }
+  .chip:has(input:checked)::before { content: "✓"; color: var(--a); font-weight: 800; }
+  .chip.off { opacity: .55; } .chip .why { color: var(--warn); }
+  .recopts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .recopts select { padding: 4px 8px; font-size: 12px; }
+  .recfiles { width: 100%; font-size: 12px; color: var(--dim); display: none; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .recfiles.on { display: flex; } .recfiles a { color: var(--a); }
+
+  @media (max-width: 1100px) {
+    .show { grid-template-columns: 1fr 1fr; height: auto; }
+    .middle { grid-column: 1 / -1; grid-row: 1; grid-template-rows: 380px 340px; }
+    .robot .fill { min-height: 300px; }
+    .more { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) { .show { grid-template-columns: 1fr; } .big { font-size: 38px; } .tiles { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="dance"><span class="k">Dance</span><b id="danceTitle">…</b><a href="/#library">change</a></div>
+  <select id="range" aria-label="What to rehearse" title="What to rehearse"></select>
+  <button class="go big" id="b-start" title="8 counts of countdown, then go (Space)">▶ Start</button>
+  <button id="b-pause" title="Space">❚❚ Pause</button>
+  <button id="b-stop" title="Esc">■ Stop</button>
+  <span class="toast" id="toast"></span>
+  <details class="settings"><summary>⚙ Settings</summary><div class="setlist">
+    <label class="tg"><input type="checkbox" id="music" checked>play the song on this page</label>
+    <label class="tg" title="If the song sounds early or late against the robots, nudge it">song timing <input type="range" id="musicOfs" min="-300" max="300" step="10" style="flex:1"><span class="mono" id="musicOfsV" style="width:58px;text-align:right"></span></label>
+    <label class="tg"><input type="checkbox" id="metro" checked>metronome clicks <span class="kbd">M</span></label>
+    <label class="tg"><input type="checkbox" id="mirror" checked>mirror my camera (like a mirror)</label>
+    <label class="tg"><input type="checkbox" id="target" checked>show the target arms on me</label>
+    <label class="tg" style="flex-direction:column;align-items:stretch">camera<select id="cam" aria-label="Camera"><option value="">camera…</option></select></label>
+    <button id="b-cal" title="Stand where you will dance, facing the camera, arms relaxed">Calibrate: stand where you'll dance</button>
+  </div></details>
+</div>
+<div class="banner" id="offline" hidden><span id="offlineMsg">The show system isn't running, so the robots can't follow yet.</span><button id="b-up">Start everything</button><a href="/" style="color:inherit">more on Home</a></div>
+
+<div class="show">
+  <!-- REACHY 1 -->
+  <section class="panel robot A">
+    <div class="ptitle"><h2>Reachy 1</h2><span class="sub">camera's left · <span id="A-state">–</span></span><span class="dot" id="A-dot"></span></div>
+    <div class="fill"><canvas id="A-sim"></canvas><div class="react" id="A-react"></div></div>
+    <div class="pov" id="A-povbox"><video id="A-pov" muted playsinline></video>
+      <span class="povlbl">what Reachy 1 sees</span><span class="povmsg" id="A-povmsg">head camera off</span>
+      <button class="povswap" title="The two head cameras look identical to the browser: swap them if they're on the wrong robot">⇄</button></div>
+    <div class="rstats">
+      <div class="stat" title="How closely this robot's measured head, body and antennas match the choreography right now"><div class="top"><span class="k">following the dance</span><span class="v" id="A-fit">–</span></div><div class="s" id="A-fit-s"></div></div>
+      <div class="stat" title="When its moves land, against the count and against Reachy 2"><div class="top"><span class="k">on the beat</span><span class="v" id="A-beat">–</span></div><div class="s" id="A-beat-s"></div></div>
+      <div class="stat" title="Whether it can see you and turns its head toward you when the choreography lets it"><div class="top"><span class="k">watching you</span><span class="v" id="A-eye">–</span></div><div class="s" id="A-eye-s"></div></div>
+      <div class="stat" title="Its last reaction to one of your gestures, or the next gesture it is waiting for"><div class="top"><span class="k">answering you</span><span class="v" id="A-ans">–</span></div><div class="s" id="A-ans-s"></div></div>
+    </div>
+    <div class="rdo" id="A-do"></div>
+  </section>
+
+  <div class="middle">
+    <!-- CAMERA -->
+    <section class="panel">
+      <div class="ptitle"><h2>Camera</h2><span class="sub">you, live</span>
+        <span class="ckey" style="margin-left:auto"><span><i style="border-color:var(--me)"></i>you</span><span><i style="border-color:var(--ref)"></i>target arms</span></span>
+</div>
+      <div class="fill cam" id="camBox">
+        <video id="video" playsinline muted hidden></video>
+        <canvas id="view"></canvas>
+        <div class="ov top">
+          <div><div class="big" id="count"></div><span class="match" id="matchBadge" hidden></span></div>
+          <div class="phr"><div class="n" id="pname">Ready</div><div class="act" id="pact"></div><div class="verdict" id="verdict"></div></div>
+        </div>
+        <div class="ov bottom"><div class="now" id="now"></div><div class="cue" id="cue"></div></div>
+        <div class="recdot" id="recDot" hidden></div>
+        <div class="msg" id="camMsg"><div>
+          <div style="font-size:17px;color:var(--text)">Turn on the camera</div>
+          <div>Frame yourself from the waist up. Your browser will ask for permission.</div>
+          <button class="go" id="b-cam">Start camera</button>
+        </div></div>
+      </div>
+      <div class="camctl">
+          <span class="caminfo" id="camInfo"></span>
+          <label class="tg"><input type="checkbox" id="wholeFrame" checked>whole frame</label>
+        </div>
+    </section>
+    <!-- ANIMATION / CHOREOGRAPHY -->
+    <section class="panel">
+      <div class="ptitle"><h2>Choreography</h2><span class="sub" id="choreoSub">on the show clock</span>
+        <label class="tg" style="margin-left:auto" id="refVidLbl" hidden title="The video this dance was learned from, at the same moment of the song"><input type="checkbox" id="refVid" checked>show the video</label>
+        <label class="tg"><input type="checkbox" id="overlayMe" checked>show me on stage</label></div>
+      <div class="fill choreo"><canvas id="stage"></canvas></div>
+      <div class="dots" id="dots"></div>
+    </section>
+  </div>
+
+  <!-- REACHY 2 -->
+  <section class="panel robot B">
+    <div class="ptitle"><h2>Reachy 2</h2><span class="sub">camera's right · <span id="B-state">–</span></span><span class="dot" id="B-dot"></span></div>
+    <div class="fill"><canvas id="B-sim"></canvas><div class="react" id="B-react"></div></div>
+    <div class="pov" id="B-povbox"><video id="B-pov" muted playsinline></video>
+      <span class="povlbl">what Reachy 2 sees</span><span class="povmsg" id="B-povmsg">head camera off</span>
+      <button class="povswap" title="The two head cameras look identical to the browser: swap them if they're on the wrong robot">⇄</button></div>
+    <div class="rstats">
+      <div class="stat" title="How closely this robot's measured head, body and antennas match the choreography right now"><div class="top"><span class="k">following the dance</span><span class="v" id="B-fit">–</span></div><div class="s" id="B-fit-s"></div></div>
+      <div class="stat" title="When its moves land, against the count and against Reachy 1"><div class="top"><span class="k">on the beat</span><span class="v" id="B-beat">–</span></div><div class="s" id="B-beat-s"></div></div>
+      <div class="stat" title="Whether it can see you and turns its head toward you when the choreography lets it"><div class="top"><span class="k">watching you</span><span class="v" id="B-eye">–</span></div><div class="s" id="B-eye-s"></div></div>
+      <div class="stat" title="Its last reaction to one of your gestures, or the next gesture it is waiting for"><div class="top"><span class="k">answering you</span><span class="v" id="B-ans">–</span></div><div class="s" id="B-ans-s"></div></div>
+    </div>
+    <div class="rdo" id="B-do"></div>
+  </section>
+</div>
+
+<div class="recdock" id="recdock">
+  <button class="recbtn" id="b-rec" title="Record (R)"><span class="ring"></span><span id="recLabel">Record</span></button>
+  <div class="recmain">
+    <div class="presets" id="presets">
+      <span class="small" style="font-size:12px;color:var(--dim)">record</span>
+      <button data-preset="all" title="Your camera, both Reachy views and the split-screen, as separate files at once">everything, separately</button>
+      <button data-preset="one" title="One video with the whole layout: you, both robots, their views and the choreography">one split-screen video</button>
+      <button data-preset="cams" title="Raw files: your camera and each Reachy's head camera">just the cameras</button>
+      <button data-preset="me" title="Only your camera, in the format on the right">just me</button>
+      <span class="custom" id="customTag" hidden>· custom mix</span>
+    </div>
+    <div class="chips">
+      <label class="chip"><input type="checkbox" data-src="camera" checked>my camera</label>
+      <label class="chip" id="chip-reachy1"><input type="checkbox" data-src="reachy1" checked>Reachy 1 view</label>
+      <label class="chip" id="chip-reachy2"><input type="checkbox" data-src="reachy2" checked>Reachy 2 view</label>
+      <label class="chip"><input type="checkbox" data-src="everything" checked>split-screen</label>
+      <label class="chip" title="Chrome asks which tab or screen"><input type="checkbox" data-src="screen">this screen</label>
+      <label class="chip" title="Put the song's audio in each video, so they line up in an editor"><input type="checkbox" id="withMusic" checked>♪ song in the videos</label>
+    </div>
+  </div>
+  <div class="recopts">
+    <select id="fmt" aria-label="Format" title="What the camera frames and what recordings contain">
+            <option value="wide">Wide · whole camera view</option>
+            <option value="tall">4:3 · full sensor (taller view)</option>
+            <option value="vert">Vertical 9:16 · follows you</option>
+            <option value="square">Square 1:1 · follows you</option>
+            <option value="close">Close-up · your upper body</option>
+          </select>
+    <select id="quality" aria-label="Recording quality">
+            <option value="1920:30">1080p</option><option value="1920:60">1080p · 60 fps</option>
+            <option value="3840:30">4K</option><option value="1280:30">720p</option>
+          </select>
+    <label class="tg" title="Start recording when you press Start, stop when the run ends"><input type="checkbox" id="autoRec">auto-record each run</label>
+    <button id="b-povs" type="button" title="Each Reachy's head camera, over USB">Reachy cameras on</button>
+  </div>
+  <div class="recfiles" id="recFiles"></div>
+</div>
+
+<div class="more">
+  <section class="panel">
+    <h3>Timing against the beat · last 12 s (up = late)</h3>
+    <div class="tiles">
+      <div class="stat"><div class="k" style="color:var(--me)">you · pose match</div><div class="v" id="t-me">–</div></div>
+      <div class="stat"><div class="k" style="color:var(--me)">you · timing</div><div class="v" id="t-me-off">–</div></div>
+      <div class="stat"><div class="k">robots ↔ you</div><div class="v" id="t-RY">–</div></div>
+    </div>
+    <canvas id="chart"></canvas>
+    <div class="ckey" style="margin-top:6px"><span><i style="border-color:var(--me)"></i>you</span><span><i style="border-color:var(--a)"></i>Reachy 1</span><span><i style="border-color:var(--b)"></i>Reachy 2</span></div>
+  </section>
+  <section class="panel">
+    <h3>Cues · your gestures and the robots' answers</h3>
+    <table><thead><tr><th>When</th><th>Cue</th><th>You</th><th>Reachy 1</th><th>Reachy 2</th></tr></thead><tbody id="rows">
+      <tr><td colspan="5" style="color:var(--dim);font-family:inherit">Start a section to score it.</td></tr></tbody></table>
+    <div class="summary" id="summary" hidden></div>
+  </section>
+</div>
+
+<script type="module">
+import * as C from "/static/encendido-stage.mjs";
+import * as R from "/static/rehearsal.mjs";
+import { makeShow, fmt } from "/static/choreo.mjs";
+import { SongSync } from "/static/songsync.mjs";
+import { mountNav, startEverything } from "/static/nav.mjs";
+mountNav("perform");
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+let TL = null, snap = null, snapAt = 0, SHOW = null;
+let rec = null;                     // the running recording session: { t0, wall, show0, parts: [...] }
+// Encendido keeps its hand-picked rehearsal sections; other dances get theirs from their sections and phrases.
+const ENC_SECTIONS = [["1 19", "Whole dance · 1–19 (1:16)"], ["6 9", "Close-up demo · 6–9 (reboot, walk, peekaboo, hood off)"], ["5 6", "Boot-up · 5–6"],
+  ["8 8", "Peekaboo · 8"], ["15 15", "Electro arms · 15"], ["16 17", "Robot square + wave · 16–17"], ["18 19", "Finale · 18–19"]];
+function useTimeline(tl) {
+  TL = tl; SHOW = makeShow(tl); R.useShow(SHOW);
+  const keep = $("range").value, secs = tl.name === "encendido" ? ENC_SECTIONS : SHOW.sections;
+  $("range").innerHTML = secs.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("");
+  if (secs.some(([v]) => v === keep)) $("range").value = keep;
+  $("danceTitle").textContent = tl.title || tl.name;
+  song.load(tl.song?.url || null, tl.song?.first_downbeat_s || 0);
+  refVideo.info = tl.video || null; $("refVidLbl").hidden = !tl.video;
+  if (tl.video && refVideo.el.dataset.url !== tl.video.url) { refVideo.el.dataset.url = tl.video.url; refVideo.el.src = tl.video.url; }
+  $("music").closest("label").title = tl.song ? "" : "this dance has no song file: the metronome keeps time";
+  lastPhrase = -1;
+}
+let tlLoading = false;
+async function refreshTimeline() {
+  if (tlLoading) return; tlLoading = true;
+  try { useTimeline(await fetch("/api/timeline").then(r => r.json())); } finally { tlLoading = false; }
+}
+
+// ---------- the reference video (dances learned from a video), in step with the song ----------
+const refVideo = { el: Object.assign(document.createElement("video"), { muted: true, playsInline: true, preload: "auto" }), info: null };
+function syncRefVideo() {
+  const v = refVideo.el, info = refVideo.info;
+  if (!info || !v.src || !$("refVid").checked) { if (!v.paused) v.pause(); return; }
+  const t = (TL?.song?.first_downbeat_s || 0) + showTime() - info.offset_s;      // video time for this moment of the song
+  if (live() && t >= 0 && t < (v.duration || 1e9)) {
+    if (v.paused) { v.currentTime = t; v.play().catch(() => {}); }
+    else if (Math.abs(v.currentTime - t) > 0.15) v.currentTime = t;
+  } else { if (!v.paused) v.pause(); if (v.readyState >= 1 && Math.abs(v.currentTime - Math.max(0, t)) > 0.3) v.currentTime = Math.max(0, t); }
+}
+
+// ---------- the song, in sync with the show clock ----------
+const audioEl = new Audio(); audioEl.preload = "auto";
+const song = new SongSync(audioEl);
+let mctx = null, musicDest = null;
+function musicGraph() {         // route the song through WebAudio once, so recordings can carry it too
+  if (mctx) return;
+  try {
+    mctx = new AudioContext(); const src = mctx.createMediaElementSource(audioEl);
+    musicDest = mctx.createMediaStreamDestination(); src.connect(mctx.destination); src.connect(musicDest);
+    song.outputLatency = () => Math.min(0.5, (mctx.outputLatency || 0) + (mctx.baseLatency || 0));
+  } catch { mctx = null; }
+}
+$("musicOfs").value = song.offsetMs; $("musicOfsV").textContent = `${song.offsetMs > 0 ? "+" : ""}${song.offsetMs} ms`;
+$("musicOfs").oninput = e => { song.setOffset(+e.target.value); $("musicOfsV").textContent = `${song.offsetMs > 0 ? "+" : ""}${song.offsetMs} ms`; };
+$("music").onchange = e => { song.enabled = e.target.checked; };
+
+function showTime() {
+  if (!snap) return 0;
+  const c = snap.clock, on = c.state === "playing" || c.state === "countdown";
+  return c.show_t + (on ? (performance.now() - snapAt) / 1000 : 0);
+}
+const live = () => snap && snap.clock.connected && (snap.clock.state === "playing" || snap.clock.state === "countdown");
+const phraseIdx = t => SHOW.phraseAt(t);
+
+// ---------- metronome ----------
+let actx = null, lastBeat = null, beatAt = 0, beatOne = false;
+function click(accent) {
+  if (!$("metro").checked) return;
+  actx ||= new AudioContext();
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.frequency.value = accent ? 1320 : 880; g.gain.setValueAtTime(accent ? .3 : .16, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, actx.currentTime + .07);
+  o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime + .08);
+}
+function beat(n, accent) { if (n !== lastBeat) { lastBeat = n; beatAt = performance.now(); beatOne = accent; click(accent); } }
+
+// ---------- camera + pose model ----------
+const video = $("video"), view = $("view"), vctx = view.getContext("2d");
+let landmarker = null, lm = null, inflight = false, lastVideoT = -1, stream = null;
+const CONN = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[0,11],[0,12]];
+async function loadModel() {
+  const { PoseLandmarker, FilesetResolver } = await import("/static/vendor/mediapipe/vision_bundle.mjs");
+  const files = await FilesetResolver.forVisionTasks("/static/vendor/mediapipe/wasm");
+  const opts = d => ({ baseOptions: { modelAssetPath: "/models/pose_landmarker_full.task", delegate: d }, runningMode: "VIDEO", numPoses: 1 });
+  try { return await PoseLandmarker.createFromOptions(files, opts("GPU")); } catch { return await PoseLandmarker.createFromOptions(files, opts("CPU")); }
+}
+async function listCams(current) {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+  $("cam").innerHTML = devs.map(d => `<option value="${d.deviceId}">${esc(d.label || "camera")}</option>`).join("");
+  const pick = devs.find(d => /facetime|built-in|integrated/i.test(d.label))?.deviceId || devs.find(d => !/reachy/i.test(d.label))?.deviceId;
+  $("cam").value = current || pick || "";
+  return pick;
+}
+async function startCamera(deviceId) {
+  $("camMsg").hidden = false; $("camMsg").querySelector("div").innerHTML = "Starting camera and pose model…";
+  try {
+    stream?.getTracks().forEach(t => t.stop());
+    // Ask for the sensor's own, widest mode: large ideal size and no browser crop-and-scale (a 1280x720 request can crop).
+    const tall = $("fmt").value === "tall";
+    const want = { width: { ideal: tall ? 2880 : 3840 }, height: { ideal: 2160 }, aspectRatio: { ideal: tall ? 4 / 3 : 16 / 9 }, resizeMode: "none",
+                   frameRate: { ideal: quality().fps }, ...(deviceId ? { deviceId: { exact: deviceId } } : {}) };
+    stream = await navigator.mediaDevices.getUserMedia({ video: want, audio: false });
+    const track = stream.getVideoTracks()[0], got = track.getSettings().deviceId, pick = await listCams(got);
+    if (!deviceId && pick && pick !== got) return startCamera(pick);       // prefer the laptop camera over a Reachy's
+    const caps = track.getCapabilities?.() || {};
+    if (caps.zoom) { try { await track.applyConstraints({ advanced: [{ zoom: caps.zoom.min }] }); } catch {} }   // zoomed all the way out
+    video.srcObject = stream; await video.play();
+    const st = track.getSettings();
+    $("camInfo").textContent = `${st.width}×${st.height}${caps.zoom ? ` · zoom ${track.getSettings().zoom ?? caps.zoom.min}` : ""}`;
+
+    landmarker ||= await loadModel();
+    $("camMsg").hidden = true;
+    if (!pov.A.stream && !pov.B.stream) startPovs();       // the Reachys' head cameras come on with yours
+  } catch (e) {
+    $("camMsg").querySelector("div").innerHTML = `<div style="color:var(--err)">Camera unavailable: ${esc(e.message || e)}</div><button class="go" id="b-cam2">Try again</button>`;
+    $("b-cam2").onclick = () => startCamera();
+  }
+}
+$("b-cam").onclick = () => startCamera();
+$("cam").onchange = e => e.target.value && startCamera(e.target.value);
+
+// ---------- formats and recording ----------
+// Each format is a crop of the camera picture (in video pixels) and an output size. Pose tracking always uses the full frame.
+const recCanvas = document.createElement("canvas"), rctx = recCanvas.getContext("2d");
+let frameFollow = null;                              // smoothed centre of the dancer, video pixels
+function quality() { const [L, fps] = $("quality").value.split(":").map(Number); return { L, fps }; }
+function cropRect(fmt) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw) return null;
+  let cx = vw / 2, cy = vh / 2, sw = vw * 0.25;
+  if (lm) {
+    const sx = (lm[11].x + lm[12].x) / 2 * vw, sy = (lm[11].y + lm[12].y) / 2 * vh;
+    sw = Math.abs(lm[11].x - lm[12].x) * vw || sw;
+    const f = frameFollow;
+    frameFollow = f ? { x: f.x + (sx - f.x) * 0.08, y: f.y + (sy - f.y) * 0.08, sw: f.sw + (sw - f.sw) * 0.08 } : { x: sx, y: sy, sw };
+  }
+  if (frameFollow) { cx = frameFollow.x; cy = frameFollow.y; sw = frameFollow.sw; }
+  const fit = (w, h, x, y) => ({ w, h, x: clamp(x - w / 2, 0, vw - w), y: clamp(y - h / 2, 0, vh - h) });
+  if (fmt === "vert") return fit(Math.min(vw, vh * 9 / 16), vh, cx, vh / 2);
+  if (fmt === "square") { const s = Math.min(vw, vh); return fit(s, s, cx, vh / 2); }
+  if (fmt === "close") {                               // chest up: about 3.4 shoulder-widths wide, shoulders a little below centre
+    let w = clamp(sw * 3.4, vw * 0.3, vw), h = w * 9 / 16; if (h > vh) { h = vh; w = h * 16 / 9; }
+    return fit(w, h, cx, cy - h * 0.12);
+  }
+  return { x: 0, y: 0, w: vw, h: vh };                 // wide / 4:3: the whole picture
+}
+// "Everything": the page's layout in one 16:9 video. Reachy 1 | camera over choreography | Reachy 2, plus the count and verdict.
+function drawEverything(W, H) {
+  const g = rctx, pad = W * 0.012, top = H * 0.07, colW = W * 0.21, midW = W - 2 * colW - 4 * pad;
+  g.fillStyle = "#0d0c1c"; g.fillRect(0, 0, W, H);
+  const t = showTime(), i = phraseIdx(Math.max(0, t)), P = SHOW.PHRASES[i];
+  const cnt = $("count").textContent, ph = $("pname").textContent;
+  g.fillStyle = "#ede9ff"; g.font = `800 ${H * 0.04}px sans-serif`; g.textBaseline = "middle"; g.textAlign = "left";
+  g.fillText(`${SHOW.title} · ${ph}`, pad * 1.5, top / 2);
+  g.textAlign = "right"; g.fillStyle = "#f2b544"; g.fillText(cnt ? `count ${cnt}` : "", W - pad * 1.5, top / 2);
+  g.font = `600 ${H * 0.022}px sans-serif`; g.fillStyle = "#a9a3cc"; g.textAlign = "center";
+  g.fillText($("verdict").textContent || "", W / 2, top / 2);
+  const box = (x, y, w, h, src, label, color) => {
+    g.fillStyle = "#17152e"; g.beginPath(); g.roundRect(x, y, w, h, H * 0.015); g.fill();
+    if (src === view && !video.videoWidth) {
+      g.fillStyle = "#a9a3cc"; g.font = `600 ${H * 0.022}px sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("camera off", x + w / 2, y + h / 2);
+    } else if (src && (src.videoWidth || src.width)) {   // contain-fit the panel's canvas or video
+      const sw0 = src.videoWidth || src.width, sh0 = src.videoHeight || src.height;
+      const ar = sw0 / sh0, inner = [w - pad, h - pad * 2.6];
+      let dw = inner[0], dh = dw / ar; if (dh > inner[1]) { dh = inner[1]; dw = dh * ar; }
+      g.drawImage(src, x + (w - dw) / 2, y + pad * 2.1 + (inner[1] - dh) / 2, dw, dh);
+    }
+    g.fillStyle = color; g.font = `800 ${H * 0.026}px sans-serif`; g.textAlign = "left"; g.textBaseline = "top"; g.fillText(label, x + pad * 0.7, y + pad * 0.6);
+  };
+  const bodyH = H - top - pad;
+  for (const [side, x, color, n] of [["A", pad, "#7fe3ff", 1], ["B", W - pad - colW, "#ffb35c", 2]]) {
+    const v = povVideo(side), hasPov = pov[side].stream && v.videoWidth;
+    const simH = hasPov ? bodyH - (colW * 9 / 16 + pad * 3.6) - pad : bodyH;
+    box(x, top, colW, simH, $(side + "-sim"), `Reachy ${n}  ${$(side + "-beat").textContent}`, color);
+    if (hasPov) box(x, top + simH + pad, colW, bodyH - simH - pad, v, `Reachy ${n} sees`, color);
+  }
+  const mx = pad * 2 + colW, half = (bodyH - pad) / 2;
+  box(mx, top, midW, half, view, `You${myMatch != null ? `  ${Math.round(100 * myMatch)}% match` : ""}`, "#f27aa8");
+  box(mx, top + half + pad, midW, half, sc, `Choreography · ${i + 1}. ${P.you}`, "#ede9ff");
+  g.textBaseline = "alphabetic";
+}
+// ---------- the Reachys' head cameras ----------
+// Each Reachy Mini Lite's head camera is a USB camera ("Reachy Mini Camera"). The daemons run with --no-media, so the page
+// can open them. Both report the same name, so which is which is remembered per browser and can be swapped with ⇄.
+const pov = { A: { stream: null, id: null }, B: { stream: null, id: null } };
+const povVideo = side => $(side + "-pov");
+function povMap() { try { return JSON.parse(localStorage.getItem("encendido.povMap") || "{}"); } catch { return {}; } }
+function savePovMap(m) { try { localStorage.setItem("encendido.povMap", JSON.stringify(m)); } catch {} }
+async function startPovs() {
+  let devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+  if (!devs.some(d => d.label)) {                       // labels appear only after camera permission
+    try { (await navigator.mediaDevices.getUserMedia({ video: true })).getTracks().forEach(t => t.stop()); } catch { toast("camera permission needed"); return; }
+    devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+  }
+  const heads = devs.filter(d => /reachy/i.test(d.label));
+  if (!heads.length) { for (const s of "AB") $(s + "-povmsg").textContent = "no Reachy camera found (USB)"; toast("no Reachy head cameras found"); return; }
+  const m = povMap(), ids = heads.map(d => d.deviceId);
+  let a = ids.includes(m.A) ? m.A : ids[0], b = ids.includes(m.B) && m.B !== a ? m.B : ids.find(i => i !== a);
+  savePovMap({ A: a, B: b });
+  for (const [side, id] of [["A", a], ["B", b]]) await openPov(side, id);
+}
+async function openPov(side, id) {
+  const P = pov[side];
+  P.stream?.getTracks().forEach(t => t.stop()); P.stream = null; P.id = id;
+  if (!id) { $(side + "-povmsg").textContent = "no camera for this Reachy"; $(side + "-povmsg").hidden = false; return; }
+  try {
+    P.stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
+    const v = povVideo(side); v.srcObject = P.stream; await v.play();
+    const st = P.stream.getVideoTracks()[0].getSettings();
+    $(side + "-povmsg").hidden = true; $(side + "-povbox").title = `${st.width}×${st.height}`; povChips();
+  } catch (e) { $(side + "-povmsg").textContent = `can't open: ${e.message || e}`; $(side + "-povmsg").hidden = false; }
+}
+document.querySelectorAll(".povswap").forEach(btn => btn.onclick = async () => {
+  const m = povMap(); savePovMap({ A: m.B, B: m.A });
+  if (rec) { toast("stop recording before swapping"); return; }
+  await openPov("A", m.B); await openPov("B", m.A); toast("swapped the Reachy cameras");
+});
+$("b-povs").onclick = () => startPovs();
+
+// ---------- recording: every chosen source at once, in sync ----------
+const SOURCES = { camera: "my camera", reachy1: "Reachy 1 view", reachy2: "Reachy 2 view", everything: "split-screen", screen: "screen" };
+const chosen = () => [...document.querySelectorAll("[data-src]")].filter(i => i.checked).map(i => i.dataset.src);
+// Presets: one click picks a common mix; ticking chips by hand makes it a custom mix. Remembered per browser.
+const PRESETS = { all: ["camera", "reachy1", "reachy2", "everything"], one: ["everything"], cams: ["camera", "reachy1", "reachy2"], me: ["camera"] };
+function setChosen(list) { document.querySelectorAll("[data-src]").forEach(i => i.checked = list.includes(i.dataset.src)); summarizeSources(); }
+function summarizeSources() {
+  const c = chosen(), key = Object.keys(PRESETS).find(k => PRESETS[k].length === c.length && PRESETS[k].every(x => c.includes(x)));
+  document.querySelectorAll("[data-preset]").forEach(b => b.classList.toggle("on", b.dataset.preset === key));
+  $("customTag").hidden = !!key || !c.length;
+  try { localStorage.setItem("reachy.recSources", JSON.stringify(c)); } catch {}
+  $("recLabel").textContent = rec ? $("recLabel").textContent : c.length ? `Record${c.length > 1 ? ` ${c.length} videos` : ""}` : "Pick what to record";
+}
+document.querySelectorAll("[data-src]").forEach(i => i.onchange = summarizeSources);
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => setChosen(PRESETS[b.dataset.preset]));
+try { const saved = JSON.parse(localStorage.getItem("reachy.recSources") || "null"); if (Array.isArray(saved)) setChosen(saved); } catch {}
+summarizeSources();
+function povChips() {
+  for (const [src, side] of [["reachy1", "A"], ["reachy2", "B"]]) {
+    const el = $("chip-" + src), on = !!pov[side].stream;
+    el.classList.toggle("off", !on); el.title = on ? "" : "head camera off: press Reachy cameras on";
+  }
+}
+const camCanvas = document.createElement("canvas"), cctx = camCanvas.getContext("2d");   // the camera, framed by the format
+let recTimer = null;
+function recType(withAudio = false) {
+  const list = withAudio ? ["video/mp4;codecs=avc1,mp4a.40.2", "video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"]
+                         : ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+  for (const t of list) if (window.MediaRecorder?.isTypeSupported(t)) return t;
+  return "";
+}
+function drawRecordingFrame() {
+  if (!rec) return;
+  if (rec.parts.some(p => p.source === "everything")) drawEverything(recCanvas.width, recCanvas.height);
+  if (rec.parts.some(p => p.source === "camera") && video.videoWidth) {
+    const c = cropRect($("fmt").value); if (c) cctx.drawImage(video, c.x, c.y, c.w, c.h, 0, 0, camCanvas.width, camCanvas.height);
+  }
+}
+const even = n => n - (n % 2);
+async function startRecording() {
+  if (rec) return;
+  const want = chosen(), { L, fps } = quality();
+  if (!want.length) { toast("pick what to record first"); return; }
+  if ($("withMusic").checked && TL?.song) musicGraph();
+  const audioTracks = $("withMusic").checked && musicDest ? musicDest.stream.getAudioTracks() : [];
+  const bits = w => w >= 3840 ? 35_000_000 : w >= 1920 ? 12_000_000 : 6_000_000;
+  const inputs = [];
+  // Ask for the screen first: it needs the user's pick, and everything else should start together after it.
+  if (want.includes("screen")) {
+    try { inputs.push({ source: "screen", stream: await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: fps, width: { ideal: L } }, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" }), own: true }); }
+    catch { toast("screen capture cancelled: recording the other sources"); }
+  }
+  if (want.includes("camera")) {
+    if (!video.videoWidth) toast("camera is off: skipping my camera");
+    else {
+      const c = cropRect($("fmt").value), ar = c.w / c.h;
+      let W, H; if (ar >= 1) { W = Math.min(L, Math.round(c.w * 2)); H = Math.round(W / ar); } else { H = Math.min(L, Math.round(c.h * 2)); W = Math.round(H * ar); }
+      camCanvas.width = even(W); camCanvas.height = even(H);
+      inputs.push({ source: "camera", stream: camCanvas.captureStream(fps), format: $("fmt").value });
+    }
+  }
+  for (const [src, side] of [["reachy1", "A"], ["reachy2", "B"]]) if (want.includes(src)) {
+    if (!pov[side].stream) toast(`Reachy ${side === "A" ? 1 : 2} camera is off: press "Reachy cameras on"`);
+    else inputs.push({ source: src, stream: new MediaStream(pov[side].stream.getVideoTracks()) });
+  }
+  if (want.includes("everything")) {
+    recCanvas.width = even(L); recCanvas.height = even(Math.round(L * 9 / 16));
+    inputs.push({ source: "everything", stream: recCanvas.captureStream(fps) });
+  }
+  if (!inputs.length) { toast("nothing to record: tick a source or turn a camera on"); return; }
+  const d = new Date(), pad = n => String(n).padStart(2, "0");
+  const session = `reachoreo-${(TL?.name || "dance").slice(0, 24)}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  rec = { session, wall: Date.now(), t0: performance.now(), show0: showTime(), clock0: snap?.clock?.state, parts: [] };
+  drawRecordingFrame();
+  for (const inp of inputs) {
+    const tr = inp.stream.getVideoTracks()[0], st = tr.getSettings();
+    const w = inp.source === "camera" ? camCanvas.width : inp.source === "everything" ? recCanvas.width : st.width;
+    const h = inp.source === "camera" ? camCanvas.height : inp.source === "everything" ? recCanvas.height : st.height;
+    const stream = inp.source !== "screen" && audioTracks.length ? new MediaStream([...inp.stream.getVideoTracks(), ...audioTracks]) : inp.stream;
+    const type = recType(stream.getAudioTracks().length > 0);
+    const mr = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: bits(w) });
+    const part = { ...inp, mr, chunks: [], width: w, height: h, done: null };
+    part.done = new Promise(res => { mr.onstop = res; });
+    mr.ondataavailable = e => e.data.size && part.chunks.push(e.data);
+    if (inp.source === "screen") tr.onended = () => stopRecording();
+    rec.parts.push(part);
+  }
+  for (const p of rec.parts) { p.mr.start(1000); p.startOffsetMs = Math.round(performance.now() - rec.t0); }
+  $("b-rec").classList.add("on"); $("recDot").hidden = false; $("recFiles").classList.remove("on");
+  const names = rec.parts.map(p => SOURCES[p.source]).join(" + ");
+  const upd = () => { if (!rec) return; const s = Math.floor((performance.now() - rec.t0) / 1000), tm = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    $("recDot").textContent = `● REC ${tm} · ${names}`; $("recLabel").textContent = `Stop · ${tm}`; };
+  upd(); recTimer = setInterval(upd, 250);
+}
+async function stopRecording() {
+  if (!rec || rec.stopping) return;
+  const session = rec; session.stopping = true;
+  const show1 = showTime(), wall1 = Date.now();
+  for (const p of session.parts) if (p.mr.state !== "inactive") p.mr.stop();
+  await Promise.all(session.parts.map(p => p.done));
+  const files = [];
+  for (const p of session.parts) {
+    const mime = p.mr.mimeType || recType(), ext = mime.includes("mp4") ? "mp4" : "webm";
+    const name = `${session.session}-${p.source}.${ext}`, blob = new Blob(p.chunks, { type: mime });
+    download(blob, name);
+    p.url = URL.createObjectURL(blob); p.name = name; p.size = blob.size;
+    files.push({ file: name, source: p.source, format: p.format, width: p.width, height: p.height, start_offset_ms: p.startOffsetMs, mb: +(blob.size / 1e6).toFixed(1) });
+    if (p.own) p.stream.getTracks().forEach(t => t.stop());
+  }
+  // One file that lines the videos up with each other and with the show (and the dashboard's event log export).
+  const sync = { session: session.session, started_wall_ms: session.wall, ended_wall_ms: wall1, duration_s: +((wall1 - session.wall) / 1000).toFixed(2),
+    show_time_at_start_s: +session.show0.toFixed(3), show_time_at_end_s: +show1.toFixed(3), conductor_state_at_start: session.clock0,
+    section: $("range").value, reachy_cameras: povMap(), files,
+    note: "start_offset_ms: when each file started, after started_wall_ms. Show time 0 = the first downbeat." };
+  download(new Blob([JSON.stringify(sync, null, 1)], { type: "application/json" }), `${session.session}-sync.json`);
+  toast(`saved ${files.length} video${files.length > 1 ? "s" : ""} + sync file to Downloads (${session.session})`);
+  rec = null; clearInterval(recTimer);
+  $("b-rec").classList.remove("on"); $("recDot").hidden = true; summarizeSources();
+  $("recFiles").innerHTML = `<b style="color:var(--ok)">✓ Saved to Downloads:</b> ` + session.parts.map(p => `<a href="${p.url}" download="${esc(p.name)}">${esc(SOURCES[p.source])} (${(p.size / 1e6).toFixed(1)} MB)</a>`).join(" · ")
+    + ` · <span>+ ${esc(session.session)}-sync.json</span> <span>· missing files? allow multiple downloads in Chrome's address bar</span>`;
+  $("recFiles").classList.add("on");
+}
+function download(blob, name) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 120000);
+}
+$("b-rec").onclick = () => rec ? stopRecording() : startRecording();
+$("quality").onchange = () => { if (!rec && stream && quality().fps === 60) startCamera($("cam").value || undefined); };
+const canRecord = () => {};
+$("fmt").onchange = () => {
+  if (rec) { toast("stop the recording to change format"); return; }
+  if (stream) startCamera($("cam").value || undefined);   // 4:3 asks the camera for a different mode
+};
+let autoRecording = false;
+
+const vis = R.vis;
+$("b-cal").onclick = async () => { R.calibrate(lastMe); toast((await post("/api/calibrate", {})).msg); };
+const hist = [];
+let myOffset = null, offsetFresh = false, lastOffsetAt = 0, lastMe = null, myMatch = null;
+
+function frame() {
+  if (landmarker && video.readyState >= 2 && video.currentTime !== lastVideoT) {
+    lastVideoT = video.currentTime;
+    const res = landmarker.detectForVideo(video, performance.now());
+    lm = res.landmarks?.[0] || null;
+    if (lm) {
+      lastMe = R.myPose(lm, video.videoWidth, video.videoHeight);
+      const t = showTime();
+      if (live() && t > 0) {
+        myMatch = R.matchAt(lastMe, t);
+        hist.push({ t, me: lastMe }); while (hist.length > 200) hist.shift();
+        if (performance.now() - lastOffsetAt > 400) { lastOffsetAt = performance.now(); const o = R.estimateOffset(hist, t); offsetFresh = o != null; if (o != null) myOffset = o; }
+      } else myMatch = null;
+    }
+    if (!inflight) {
+      inflight = true;
+      post("/api/landmarks", { lm: lm ? lm.map(p => [+p.x.toFixed(4), +p.y.toFixed(4)]) : null,
+                               me: { match: myMatch, offset_ms: offsetFresh ? myOffset : null, fresh: offsetFresh } })
+        .then(r => { if (r.ok === false) toast(r.msg); }).finally(() => inflight = false);
+    }
+  }
+  if (snap) song.update(snap.clock.state, showTime());
+  syncRefVideo();
+  if (song.blocked && !song.warned) { song.warned = true; toast("The browser blocked the song: click anywhere on the page to turn it on"); }
+  drawCamera(); drawChoreo(); drawRobotPanel("A"); drawRobotPanel("B"); tick(); drawRecordingFrame();
+  requestAnimationFrame(frame);
+}
+
+function fitCanvas(cv, maxDpr = 2) {
+  const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(devicePixelRatio || 1, maxDpr);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  return { w, h, dpr };
+}
+
+// ---------- camera: you, plus the target arm pose drawn from your own shoulders ----------
+function drawCamera() {
+  const { w, h, dpr } = fitCanvas(view);
+  vctx.setTransform(dpr, 0, 0, dpr, 0, 0); vctx.clearRect(0, 0, w, h);
+  if (!video.videoWidth) return;
+  const vr = video.videoWidth / video.videoHeight, sr = w / h;
+  const whole = $("wholeFrame").checked;            // whole frame: letterbox, nothing cropped; off: fill the panel
+  const dw = (vr > sr) !== whole ? h * vr : w, dh = (vr > sr) !== whole ? h : w / vr, ox = (w - dw) / 2, oy = (h - dh) / 2;
+  vctx.save();
+  if ($("mirror").checked) { vctx.translate(w, 0); vctx.scale(-1, 1); }
+  vctx.drawImage(video, ox, oy, dw, dh);
+  const f = $("fmt").value;
+  if (["vert", "square", "close"].includes(f)) {
+    const c = cropRect(f), k = dw / video.videoWidth, x = ox + c.x * k, y = oy + c.y * k, cw = c.w * k, ch = c.h * k;
+    vctx.fillStyle = "rgba(0,0,0,.55)";
+    vctx.fillRect(ox, oy, dw, y - oy); vctx.fillRect(ox, y + ch, dw, oy + dh - y - ch);
+    vctx.fillRect(ox, y, x - ox, ch); vctx.fillRect(x + cw, y, ox + dw - x - cw, ch);
+    vctx.strokeStyle = "#ffffffaa"; vctx.lineWidth = 2; vctx.strokeRect(x, y, cw, ch);
+  }
+  if (lm) {
+    const P = i => [ox + lm[i].x * dw, oy + lm[i].y * dh];
+    const len = (a, b) => Math.hypot(P(b)[0] - P(a)[0], P(b)[1] - P(a)[1]);
+    vctx.lineCap = "round";
+    if ($("target").checked && snap && showTime() > -4) {
+      const H = SHOW.poseAt(Math.max(0, showTime())).H;
+      for (const [sx, a, e, si, ei, wi] of [[-1, H.aL, H.eL, 12, 14, 16], [1, H.aR, H.eR, 11, 13, 15]]) {
+        const s = P(si), ua = len(si, ei) || 80, fa = len(ei, wi) || ua;
+        const e1 = [s[0] + sx * Math.sin(a) * ua, s[1] + Math.cos(a) * ua], w1 = [e1[0] + sx * Math.sin(a + e) * fa, e1[1] + Math.cos(a + e) * fa];
+        vctx.strokeStyle = "#f2b544cc"; vctx.lineWidth = 10;
+        vctx.beginPath(); vctx.moveTo(...s); vctx.lineTo(...e1); vctx.lineTo(...w1); vctx.stroke();
+        vctx.fillStyle = "#f2b544"; vctx.beginPath(); vctx.arc(...w1, 9, 0, 7); vctx.fill();
+      }
+    }
+    vctx.strokeStyle = "#f27aa8"; vctx.lineWidth = 5;
+    for (const [a, b] of CONN) if (vis(lm[a]) && vis(lm[b])) { vctx.beginPath(); vctx.moveTo(...P(a)); vctx.lineTo(...P(b)); vctx.stroke(); }
+    vctx.fillStyle = "#fff";
+    for (const i of [0, 11, 12, 13, 14, 15, 16]) if (vis(lm[i])) { const [x, y] = P(i); vctx.beginPath(); vctx.arc(x, y, 5, 0, 7); vctx.fill(); }
+  }
+  vctx.restore();
+}
+
+// ---------- live poses ----------
+const shown = { A: null, B: null, H: null };
+function follow(cur, tgt, k = 0.35) {
+  if (!cur) return { ...tgt };
+  for (const key in tgt) if (typeof tgt[key] === "number" && typeof cur[key] === "number") cur[key] += (tgt[key] - cur[key]) * k; else cur[key] = tgt[key];
+  return cur;
+}
+function liveRobot(side, ref) {
+  const r = snap?.robots?.[side], y = snap?.sync?.[side];
+  if (!r?.connected) return null;
+  let pose = null;
+  if (y?.meas) pose = R.measuredToScore(y.meas, ref, TL?.cal);
+  else if (r.pose) pose = { ...ref, ...r.pose };
+  return pose ? (shown[side] = follow(shown[side], pose)) : null;
+}
+function liveMe(ref) {
+  if (!lastMe || !lm) return null;
+  const meH = { ...ref, aL: lastMe.aL, eL: lastMe.seen.eL ? lastMe.eL : ref.eL, aR: lastMe.aR, eR: lastMe.seen.eR ? lastMe.eR : ref.eR,
+    look: lastMe.look, headDown: lastMe.headDown, tilt: lastMe.tilt, x: snap?.dancer?.seen ? snap.dancer.x : 0,
+    depth: 0, face: 0, lean: 0, shrug: 0, drop: 0, fLy: 0, fRy: 0, fLx: 0, fRx: 0, sit: 0 };
+  return (shown.H = follow(shown.H, meH, 0.5));
+}
+
+// How well a robot copies the choreography: its measured pose against the score, lined up for its own delay
+// (we judge the shape here; "on the beat" judges the timing). Degrees of error, weighted, mapped to 0-100%.
+const fit = { A: null, B: null };
+function robotFit(side, p, t) {
+  const beat = snap?.sync?.[side]?.beat_ms, lagS = Math.max(0, beat ?? 100) / 1000;
+  const ref = SHOW.poseAt(Math.max(0, Math.min(SHOW.DUR - 1e-3, t - (live() ? lagS : 0))))[side === "A" ? "L" : "R"];
+  const k = TL?.cal || {}, deg = Math.PI / 180;
+  const parts = {
+    head: (Math.abs(p.yaw - ref.yaw) * (k.yaw_deg ?? 40) + Math.abs(p.pitch - ref.pitch) * (k.pitch_deg ?? 25) + Math.abs(p.roll - ref.roll) / deg) / 3,
+    // the robot can't turn past 155° (pose.to_sdk clips it), so judge it against what it is allowed to do
+    body: Math.abs(Math.max(-155, Math.min(155, p.body * (k.body_deg ?? 30) + p.turn / deg)) - Math.max(-155, Math.min(155, ref.body * (k.body_deg ?? 30) + ref.turn / deg))),
+    antennas: (Math.abs(p.antL - ref.antL) + Math.abs(p.antR - ref.antR)) / 2 * 30,
+  };
+  // When the phrase lets it follow you (gaze/track) and it can see you, turning toward you is right, not an error.
+  const following = live() && snap?.sync?.gaze_phrase && snap?.dancer?.seen;
+  if (following) { parts.head = (Math.abs(p.pitch - ref.pitch) * (k.pitch_deg ?? 25) + Math.abs(p.roll - ref.roll) / deg) / 2; parts.body = 0; }
+  const err = following ? 0.6 * parts.head + 0.4 * parts.antennas : 0.5 * parts.head + 0.25 * parts.body + 0.25 * parts.antennas;
+  const worst = Object.entries(parts).sort((a, b) => b[1] - a[1])[0];
+  const score = Math.max(0, 1 - err / 25), f = fit[side];
+  fit[side] = { score: f ? f.score + (score - f.score) * 0.05 : score, worst: worst[0], worstDeg: worst[1], at: performance.now(), following };
+}
+
+// ---------- Reachy panels: that robot alone, big. Solid = where it measures itself, faint = the choreography ----------
+const simCtx = { A: $("A-sim").getContext("2d"), B: $("B-sim").getContext("2d") };
+function drawRobotPanel(side) {
+  const cv = $(side + "-sim"), ctx = simCtx[side], { w, h, dpr } = fitCanvas(cv);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  const t = Math.max(0, Math.min(SHOW.DUR - 1e-3, showTime())), S = SHOW.poseAt(t), key = side === "A" ? "L" : "R";
+  // a 420 x 460 window of the preview stage around the robot, scaled to fit the panel
+  const VW = 310, VH = 330, s = Math.min(w / VW, h / VH) * dpr, cx = C.POS[key];      // tight on the robot: antenna tips to the counter top
+  ctx.setTransform(s, 0, 0, s, (cv.width - VW * s) / 2, (cv.height - VH * s) / 2);
+  ctx.translate(VW / 2 - cx, -(C.TOP - 300));
+  C.setContext(ctx);
+  // spotlight and counter
+  const g = ctx.createRadialGradient(cx, C.TOP - 120, 10, cx, C.TOP - 120, 260);
+  g.addColorStop(0, side === "A" ? "rgba(127,227,255,.16)" : "rgba(255,179,92,.16)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(cx - 260, C.TOP - 420, 520, 560);
+  ctx.fillStyle = "#3b3470"; ctx.fillRect(cx - 200, C.TOP - 4, 400, 18);
+  ctx.fillStyle = "#2a2552"; ctx.fillRect(cx - 190, C.TOP + 14, 380, 120);
+  // choreography ghost, then the live robot
+  ctx.save(); ctx.globalAlpha = 0.3; ctx.filter = "grayscale(1) brightness(1.8)"; C.drawRobot(cx, S[key]); ctx.restore();
+  const p = liveRobot(side, S[key]);
+  if (p) { C.drawRobot(cx, p); robotFit(side, p, t); }
+  else { ctx.fillStyle = "#a9a3cc"; ctx.font = "600 22px sans-serif"; ctx.textAlign = "center"; ctx.fillText("offline", cx, C.TOP - 250); }
+  C.setContext(sctx);
+}
+
+// ---------- the choreography: the preview's stage on the show clock, with you overlaid ----------
+const sc = $("stage"), sctx = sc.getContext("2d");
+function drawChoreo() {
+  const { w, h, dpr } = fitCanvas(sc);
+  sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.fillStyle = "#121722"; sctx.fillRect(0, 0, sc.width, sc.height);
+  const t = Math.max(0, Math.min(SHOW.DUR - 1e-3, showTime())), S = SHOW.poseAt(t);
+  const s = Math.min(sc.width / C.VW, sc.height / C.VH);
+  sctx.setTransform(s, 0, 0, s, (sc.width - C.VW * s) / 2, (sc.height - C.VH * s) / 2);
+  C.setContext(sctx);
+  C.drawKitchen({ ...S.lt, M: 1 }, C.POS.C + S.H.x, t);
+  C.drawRobot(C.POS.L, S.L); C.drawRobot(C.POS.R, S.R); C.drawHuman(S.H);
+  const me = $("overlayMe").checked ? liveMe(S.H) : null;
+  if (me) { sctx.save(); sctx.globalAlpha = 0.55; sctx.filter = "hue-rotate(-40deg) saturate(1.6)"; C.drawHuman(me); sctx.restore(); }
+  const rv = refVideo.el;
+  if (refVideo.info && $("refVid").checked && rv.videoWidth) {          // picture-in-picture: the dancer this was learned from
+    sctx.save(); sctx.setTransform(1, 0, 0, 1, 0, 0);
+    const w = sc.width * 0.3, h = w * rv.videoHeight / rv.videoWidth, x = sc.width - w - sc.width * 0.015, y = sc.height * 0.03;
+    if (refVideo.info.mirrored) { sctx.translate(x + w, y); sctx.scale(-1, 1); sctx.drawImage(rv, 0, 0, w, h); }
+    else sctx.drawImage(rv, x, y, w, h);
+    sctx.restore();
+    sctx.save(); sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.strokeStyle = "#f2b544"; sctx.lineWidth = 2;
+    sctx.strokeRect(x, y, w, h); sctx.fillStyle = "#f2b544"; sctx.font = `700 ${Math.round(sc.height * 0.035)}px sans-serif`; sctx.textAlign = "left";
+    sctx.fillText("the video", x + 6, y + h + sc.height * 0.045); sctx.restore();
+  }
+  sctx.fillStyle = "rgba(237,233,255,.55)"; sctx.font = "600 26px sans-serif"; sctx.textAlign = "center";
+  sctx.fillText("Reachy 1", C.POS.L, 860); sctx.fillText(me ? "You (bright) vs the choreography" : "You", C.POS.C, 860); sctx.fillText("Reachy 2", C.POS.R, 860);
+}
+
+// ---------- clock, count, prompts ----------
+let lastPhrase = -1;
+function tick() {
+  if (!TL || !snap) return;
+  const c = snap.clock, t = showTime(), on = live();
+  if (on && t < 0) {
+    const left = Math.ceil(-SHOW.countOf(t));
+    $("count").textContent = left; $("pname").textContent = "Get ready"; $("pact").textContent = "countdown";
+    beat(Math.floor(SHOW.countOf(t)), left % 4 === 0);
+  } else if (on || c.state === "paused") {
+    const i = phraseIdx(t), p = TL.phrases[i], count = Math.min(TL.beats, Math.floor(SHOW.countOf(Math.max(0, t)) - 8 * i) + 1);
+    $("count").textContent = count; $("pname").textContent = `${p.n}. ${p.name}`; $("pact").textContent = p.act;
+    $("now").innerHTML = `<b>YOU</b>${esc(SHOW.PHRASES[i].Y)}`;
+    const cues = new Set((p.cues || []).map(q => q.count));
+    $("dots").innerHTML = Array.from({ length: TL.beats }, (_, k) => `<i class="${k + 1 === count ? "cur" : ""} ${cues.has(k + 1) ? "cuedot" : ""}"></i>`).join("");
+    if (on) beat(Math.floor(SHOW.countOf(t)), count === 1);
+  } else {
+    $("count").textContent = ""; $("pname").textContent = c.connected ? (c.state === "ended" ? "Done" : "Ready") : "Conductor offline"; $("pact").textContent = "";
+    $("now").innerHTML = c.connected ? "<b>READY</b>Pick what to rehearse and press ▶ Start (or Space): 8 counts of countdown, then go." : "<b>OFFLINE</b>Press Start everything above to bring the robots and the clock up.";
+    $("dots").innerHTML = "";
+  }
+  const i = phraseIdx(Math.max(0, t));
+  if (i !== lastPhrase) {
+    lastPhrase = i; const p = SHOW.PHRASES[i];
+    $("A-do").innerHTML = `<b>${i + 1}. ${esc(p.you)}</b> · ${esc(p.A)}`; $("B-do").innerHTML = `<b>${i + 1}. ${esc(p.you)}</b> · ${esc(p.B)}`;
+    $("choreoSub").textContent = `phrase ${i + 1}: ${p.you}`;
+  }
+  const cueEl = $("cue");
+  if (performance.now() - cueFlash.t < 1400) { cueEl.textContent = cueFlash.txt; cueEl.className = "cue " + cueFlash.cls; }
+  else {
+    const next = snap.run && !snap.run.finished ? snap.run.rows.find(r => r.status === "upcoming" || r.status === "now") : null;
+    if (next && on) {
+      const beats = Math.ceil(SHOW.countOf(next.t) - SHOW.countOf(t)), what = next.type.replace("_", " ") + (next.side ? ` toward Reachy ${next.side === "A" ? 1 : 2}` : "");
+      cueEl.textContent = beats > 0 ? `Next: ${what} on ${next.phrase}.${next.count} · in ${beats} beat${beats > 1 ? "s" : ""}` : `${what.toUpperCase()} — now!`;
+      cueEl.className = "cue";
+    } else cueEl.textContent = "";
+  }
+  const mb = $("matchBadge");
+  mb.hidden = myMatch == null;
+  if (myMatch != null) { mb.textContent = `pose match ${Math.round(100 * myMatch)}%`; mb.className = "match " + (myMatch > .75 ? "good" : myMatch > .5 ? "meh" : "bad"); }
+  const box = $("camBox");
+  box.classList.toggle("beat", performance.now() - beatAt < 90 && !beatOne);
+  box.classList.toggle("one", performance.now() - beatAt < 140 && beatOne);
+  for (const side of ["A", "B"]) $(side + "-react").classList.toggle("on", performance.now() - flash[side] < 1100);
+}
+
+// ---------- server state ----------
+let cueFlash = { t: 0, txt: "", cls: "" };
+const gradedSeen = new Set(), seenRx = new Set(), flash = { A: 0, B: 0 };
+const series = [];
+const fmtMs = v => v == null ? "–" : `${v > 0 ? "+" : ""}${Math.round(v)} ms`;
+const grade = (v, ok, warn) => v == null ? "na" : Math.abs(v) <= ok ? "good" : Math.abs(v) <= warn ? "meh" : "bad";
+const span = (v, ok, warn, txt = fmtMs(v)) => `<span class="${grade(v, ok, warn)}">${txt}</span>`;
+function render() {
+  const s = snap, y = s.sync, me = y.me || {};
+  if (s.choreo?.name && TL && s.choreo.name !== TL.name) refreshTimeline();
+  const down = [!s.clock.connected && "the show clock (conductor)", !s.robots.A.connected && "Reachy 1", !s.robots.B.connected && "Reachy 2"].filter(Boolean);
+  $("offline").hidden = !down.length;
+  if (down.length) $("offlineMsg").textContent = `Not running: ${down.join(", ")}. ${!s.clock.connected ? "Start won't work until the clock is up." : "That robot won't move."}`;
+  for (const side of ["A", "B"]) {
+    const r = s.robots[side], o = side === "A" ? "B" : "A";
+    $(side + "-dot").className = "dot" + (r.connected ? " on" : "");
+    $(side + "-state").textContent = !r.connected ? "offline" : r.lost ? "lost the clock" : (r.dry_run ? "simulated · " : "") + ({ idle: "ready", ended: "resting" }[r.state] || r.state);
+    robotTiles(side, s, r, y, o);
+    for (const rx of r.reactions) if (!seenRx.has(rx.id)) {
+      seenRx.add(rx.id);
+      if (s.clock.show_t - rx.show_t < 3) { flash[side] = performance.now(); $(side + "-react").textContent = rx.action.toUpperCase() + (rx.source === "echo" ? " (echo)" : "!"); }
+    }
+    $(side + "-react").style.color = side === "A" ? "var(--a)" : "var(--b)";
+  }
+  $("t-me").innerHTML = myMatch != null ? `<span class="${myMatch > .75 ? "good" : myMatch > .5 ? "meh" : "bad"}">${Math.round(100 * myMatch)}%</span>` : `<span class="na">–</span>`;
+  $("t-me-off").innerHTML = span(me.offset_ms, 60, 140);
+  const va = y.A.vs_me_ms, vb = y.B.vs_me_ms;
+  const worst = [va, vb].filter(v => v != null).reduce((m, v) => m == null || Math.abs(v) > Math.abs(m) ? v : m, null);
+  $("t-RY").innerHTML = span(worst, 80, 160);
+  // one-line verdict on the camera
+  const v = $("verdict"), both = s.robots.A.connected && s.robots.B.connected, gap = y.beat_gap_ms;
+  if (!both) { v.textContent = "waiting for both robots"; v.className = "verdict meh"; }
+  else if (!live()) { v.textContent = ""; }
+  else {
+    const abOk = gap == null || Math.abs(gap) <= 40, meOk = worst == null || Math.abs(worst) <= 120;
+    v.textContent = abOk && meOk ? "in sync" : !abOk ? `robots ${Math.abs(gap)} ms apart` : `you ${Math.abs(worst)} ms off the robots`;
+    v.className = "verdict " + (abOk && meOk ? "good" : "meh");
+  }
+  if (live()) series.push({ t: performance.now(), me: me.offset_ms, A: y.A.beat_ms, B: y.B.beat_ms });
+  while (series.length && performance.now() - series[0].t > 12000) series.shift();
+  drawChart();
+  const run = s.run;
+  if (run) {
+    $("rows").innerHTML = run.rows.length ? run.rows.map(r => {
+      const st = r.status === "on beat" ? "on" : r.status;
+      const you = `<span class="pill ${st}">${r.status}</span>${r.offset_ms != null ? ` ${fmtMs(r.offset_ms)}` : ""}`;
+      const bot = sd => !(sd in r.robots) ? `<span class="na">—</span>` : r.robots[sd] == null ? `<span class="bad">no answer</span>` : `<span class="good">✓ ${r.robots[sd]} ms</span>`;
+      return `<tr class="${r.status === "now" ? "now" : ""}"><td>${r.phrase}.${r.count}</td><td>${esc(r.type.replace("_", " "))}${r.side ? " → " + (r.side === "A" ? 1 : 2) : ""}</td><td>${you}</td><td>${bot("A")}</td><td>${bot("B")}</td></tr>`;
+    }).join("") : `<tr><td colspan="5" style="color:var(--dim);font-family:inherit">No gesture cues in this section: follow the gold target arms.</td></tr>`;
+    for (const r of run.rows) {
+      const key = `${run.start_t}:${r.phrase}.${r.count}:${r.type}`;
+      if ((r.offset_ms != null || r.status === "missed") && !gradedSeen.has(key)) {
+        gradedSeen.add(key);
+        cueFlash = r.status === "missed" ? { t: performance.now(), txt: `Missed: ${r.type.replace("_", " ")}`, cls: "miss" }
+          : { t: performance.now(), txt: `${r.type.replace("_", " ")} ✓ ${fmtMs(r.offset_ms)}`, cls: "hit" };
+      }
+    }
+    const sum = $("summary"), L = s.last_run;
+    const sumKey = L ? JSON.stringify(L) : "";
+    if (run.finished && L && sum.dataset.key !== sumKey) {        // rebuild only when a new run finished
+      sum.dataset.key = sumKey;
+      sum.hidden = false;
+      sum.innerHTML = `<b>Run ${L.phrases[0]}–${L.phrases[1]} done.</b>
+        You: pose match <b>${L.me_match != null ? Math.round(100 * L.me_match) + "%" : "–"}</b>, timing <b>${fmtMs(L.me_offset_ms)}</b>, cues <b>${L.cues_hit}/${L.cues_total}</b> (${L.on_beat} on the beat).<br>
+        Reachy 1 lands <b>${fmtMs(L.beat_ms?.A)}</b>, Reachy 2 <b>${fmtMs(L.beat_ms?.B)}</b> from the count; they answered <b>${L.answers_given}/${L.answers_expected}</b> of your cues${L.mean_answer_ms != null ? ` in ${L.mean_answer_ms} ms` : ""}.<br>
+        Robots vs you: Reachy 1 <b>${fmtMs(L.robots_vs_me_ms?.A)}</b>, Reachy 2 <b>${fmtMs(L.robots_vs_me_ms?.B)}</b> (+ = you were behind them).
+        ${[L.beat_ms?.A, L.beat_ms?.B].some(v => v != null && Math.abs(v) >= 15) ? `<br><button id="b-tune" class="go" style="margin-top:8px">Tune the robots' timing from this run</button> <span class="dim" id="tuneMsg">each robot gets more (or less) lead time so its moves land on the count, and on the same count as the other</span>` : `<br><span class="good">Both robots land on the count.</span>`}`;
+      const tb = $("b-tune");
+      if (tb && !tb.dataset.bound) { tb.dataset.bound = 1; tb.onclick = async () => {
+        const r = await post("/api/tune", { apply: true });
+        $("tuneMsg").textContent = r.ok ? Object.entries(r.proposal).map(([k, p]) => `Reachy ${k === "A" ? 1 : 2}: ${p.change ? `${Math.round(p.old_s * 1000)} → ${Math.round(p.new_s * 1000)} ms early` : "already on the count"}`).join(" · ") + ". Run it again to check." : r.msg;
+        tb.disabled = true; } }
+    } else if (!run.finished) { sum.hidden = true; sum.dataset.key = ""; }
+  }
+  const c = s.clock;
+  // "record each run": stop a second after the run ends, so the last pose is in the video
+  if (autoRecording && rec && (c.state === "ended" || c.state === "idle") && performance.now() - rec.t0 > 5000) {
+    autoRecording = false; setTimeout(stopRecording, 1000);
+  }
+  $("b-start").disabled = !c.connected;
+  $("b-pause").disabled = !c.connected || !["playing", "countdown", "paused"].includes(c.state);
+  $("b-pause").textContent = c.state === "paused" ? "▶ Resume" : "❚❚ Pause";
+  $("b-stop").disabled = !c.connected || ["idle", "ended"].includes(c.state);
+}
+// The four tiles under each robot, in plain words. Each answers one question about this robot, right now.
+function robotTiles(side, s, r, y, o) {
+  const set = (id, v, cls, sub) => { $(side + "-" + id).innerHTML = `<span class="${cls}">${v}</span>`; const el = $(side + "-" + id + "-s"); el.textContent = sub; el.title = sub; };
+  const otherName = `Reachy ${o === "A" ? 1 : 2}`, running = live();
+  if (!r.connected) { for (const id of ["fit", "beat", "eye", "ans"]) set(id, "–", "na", id === "fit" ? "offline: press Start everything" : ""); return; }
+  // 1. following the dance
+  const f = fit[side];
+  if (r.state === "ended") set("fit", "–", "na", "resting after the run");
+  else if (!f || performance.now() - f.at > 1500) set("fit", "–", "na", r.dry_run ? "simulated robot: nothing measured" : "waiting for its joint readings");
+  else {
+    const pc = Math.round(100 * f.score), cls = pc >= 85 ? "good" : pc >= 65 ? "meh" : "bad";
+    set("fit", `${pc}%`, cls, pc >= 85 ? (running ? (f.following ? "on its moves, and turning to follow you" : "copying the moves well") : "holding its pose") : `${f.worst} off by ${Math.round(f.worstDeg)}°${y[side].err_deg > 8 ? " · motors may be straining" : ""}`);
+  }
+  // 2. on the beat
+  const b = y[side].beat_ms, gap = y.beat_gap_ms == null ? null : (side === "A" ? y.beat_gap_ms : -y.beat_gap_ms);
+  if (b == null) set("beat", "–", "na", running ? "measuring… (needs a few moving counts)" : "measured while it dances");
+  else {
+    const word = Math.abs(b) <= 60 ? "on time" : Math.abs(b) <= 140 ? (b > 0 ? "a bit late" : "a bit early") : (b > 0 ? "late" : "early");
+    const vs = gap == null ? "" : Math.abs(gap) <= 30 ? ` · together with ${otherName}` : ` · ${Math.abs(Math.round(gap))} ms ${gap > 0 ? "after" : "before"} ${otherName}`;
+    set("beat", word, grade(b, 60, 140), `${b > 0 ? "+" : ""}${Math.round(b)} ms vs the count${vs}`);
+  }
+  // 3. watching you
+  const seen = s.dancer.connected && s.dancer.seen, aim = y[side].aim_deg, wants = y.gaze_phrase;
+  if (!s.dancer.connected) set("eye", "no", "na", "turn on the camera so it can see you");
+  else if (!seen) set("eye", "lost you", "bad", "step back into the camera's view");
+  else if (running && !wants) set("eye", "sees you", "good", "this phrase is choreographed: it isn't meant to look at you");
+  else if (aim != null) set("eye", Math.abs(aim) <= 12 ? "looking at you" : "sees you", Math.abs(aim) <= 12 ? "good" : "meh", `head ${Math.round(Math.abs(aim))}° from you${r.dancer_k != null ? ` · ${Math.round(100 * r.dancer_k)}% sure where you are` : ""}`);
+  else set("eye", "sees you", "good", r.dancer_k != null ? `${Math.round(100 * r.dancer_k)}% sure where you are` : "");
+  // 4. answering you
+  const last = r.reactions[r.reactions.length - 1];
+  const next = running && s.run && !s.run.finished ? s.run.rows.find(q => (q.status === "upcoming" || q.status === "now") && q.robots && side in q.robots) : null;
+  const ago = last ? s.clock.show_t - last.show_t : null;
+  if (last && ago >= 0 && ago < 8) set("ans", last.action.toUpperCase(), "good", last.source === "echo" ? `echoing ${otherName}` : `${last.cause ? "to your " + last.cause.replace("_", " ") : "to you"} · ${ago < 1 ? "just now" : Math.round(ago) + " s ago"}`);
+  else if (next) set("ans", "waiting", "na", `for your ${next.type.replace("_", " ")} on ${next.phrase}.${next.count}`);
+  else set("ans", "–", "na", running ? "no gesture cues for it in this part" : last ? `last: ${last.action}` : "reacts when you hit a cue");
+}
+
+function drawChart() {
+  const cv = $("chart"), ctx = cv.getContext("2d"), { w, h, dpr } = fitCanvas(cv);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  const Y = ms => h / 2 - clamp(ms, -300, 300) / 300 * (h / 2 - 12), now = performance.now(), X = t => w - (now - t) / 12000 * w;
+  ctx.fillStyle = "#3ddc8414"; ctx.fillRect(0, Y(60), w, Y(-60) - Y(60));
+  ctx.strokeStyle = "#ffffff22"; ctx.beginPath(); ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0)); ctx.stroke();
+  ctx.fillStyle = "#a9a3cc"; ctx.font = "10px ui-monospace, monospace";
+  for (const ms of [-300, -150, 0, 150, 300]) ctx.fillText(`${ms > 0 ? "+" : ""}${ms} ms`, 6, Y(ms) + (ms === 300 ? 10 : ms === -300 ? -3 : 3));
+  for (const [k, col] of [["A", "#7fe3ff"], ["B", "#ffb35c"], ["me", "#f27aa8"]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = k === "me" ? 3 : 2; ctx.beginPath(); let pen = false;
+    for (const p of series) { if (p[k] == null) { pen = false; continue; } const x = X(p.t), yy = Y(p[k]); pen ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); pen = true; }
+    ctx.stroke();
+  }
+}
+
+async function post(url, body) {
+  try { const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); return await r.json(); }
+  catch { return { ok: false, msg: "dashboard server unreachable" }; }
+}
+let tT; function toast(m) { $("toast").textContent = m; clearTimeout(tT); tT = setTimeout(() => $("toast").textContent = "", 3500); }
+$("b-up").onclick = () => startEverything();
+$("b-start").onclick = async () => {
+  actx ||= new AudioContext(); hist.length = 0; myOffset = null; series.length = 0;
+  if (TL?.song) { musicGraph(); mctx?.resume(); audioEl.play().then(() => audioEl.pause()).catch(() => {}); }   // unlock audio inside the click
+  if ($("autoRec").checked && !rec) { startRecording(); autoRecording = true; }
+  toast((await post("/api/cmd", { cmd: "start " + $("range").value })).msg);
+};
+$("b-pause").onclick = () => post("/api/cmd", { cmd: snap?.clock.state === "paused" ? "resume" : "pause" });
+$("b-stop").onclick = () => post("/api/cmd", { cmd: "stop" });
+document.addEventListener("pointerdown", () => { mctx?.resume(); if (song.blocked) { song.blocked = false; song.warned = false; song.lastTry = 0; } });
+// Keyboard: Space start/pause/resume, Esc stop, R record, M metronome.
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, select, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const st = snap?.clock?.state;
+  if (e.code === "Space") { e.preventDefault(); if (["playing", "countdown", "paused"].includes(st)) $("b-pause").click(); else $("b-start").click(); }
+  else if (e.key === "Escape") $("b-stop").click();
+  else if (e.key === "r" || e.key === "R") $("b-rec").click();
+  else if (e.key === "m" || e.key === "M") { $("metro").checked = !$("metro").checked; toast(`metronome ${$("metro").checked ? "on" : "off"}`); }
+});
+
+useTimeline(await fetch("/api/timeline").then(r => r.json()));
+povChips();
+canRecord();
+window.__rehearsal = { drawEverything, recCanvas, pov, povVideo, song, audioEl, showTime, musicGraph, get musicDest() { return musicDest; } };     // for debugging the recording layouts from the console
+const es = new EventSource("/api/stream");
+es.onmessage = ev => { snap = JSON.parse(ev.data); snapAt = performance.now(); render(); };
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

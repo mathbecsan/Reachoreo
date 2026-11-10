@@ -1,0 +1,51 @@
+# Encendido phrase sheet: what each performer does, and how the robots may react.
+#
+# The score in encendido.py guarantees the show; reactions only layer on top of it.
+# If the dancer is missed or late, the scripted motion still happens on the count.
+#
+# react:
+#   track   : feed the dancer's live position into the score (replaces the scripted path)
+#   gaze    : 0..1, bend head yaw toward the live dancer
+#   energy  : 0..1, extra bounce scaled by how much the dancer is moving
+#   lean    : 0..1, lean toward the dancer when they come close to this robot
+#   echo    : when the other robot reacts, answer one beat later at half strength
+#   triggers: [{when: <dancer event>, counts: [first, last], action: pop|recoil|cheer|laugh, side: any|mine}]
+#     dancer events: arms_up, arm_out (has a side), hands_face, hands_open, jump
+#     side: mine = only the robot the dancer's arm points at reacts
+#
+# Counts are 0-based inside the phrase (count "1" on the page is 0 here).
+#
+# cues: the gestures the dancer is expected to make, on page counts (1-based), so the dashboard can
+#   score the dancer's timing and the fake dancer can perform them. {count, type, side?}
+bpm: 120
+phrase_beats: 8
+phrases:
+  - {n: 1,  act: "I. Off",          name: "Powered off",      dancer: "Stand frozen, knees soft, arms dead, head hanging, hood up.", react: {}}
+  - {n: 2,  act: "I. Off",          name: "A flicker",        dancer: "Frozen. Head glitch on count 6.", react: {gaze: 0.3}}
+  - {n: 3,  act: "I. Off",          name: "Anyone there?",    dancer: "Failed boot: head jerks up on 5, collapses on 7.", react: {gaze: 0.5}}
+  - {n: 4,  act: "I. Off",          name: "Lonely",           dancer: "Frozen.", react: {gaze: 0.5}}
+  - {n: 5,  act: "II. The reboot",  name: "Charging",         dancer: "Small jolt on every beat; head rises in ticks on 5 to 8.", react: {gaze: 0.8}}
+  - {n: 6,  act: "II. The reboot",  name: "Reboot",           dancer: "Boot ticks: head 1, right arm out 3, forearm 4, left arm out 5, forearm 6, head ticks 7 and 8.",
+         react: {gaze: 0.8, triggers: [{when: arm_out, counts: [2, 6], action: cheer, side: mine}]},
+         cues: [{count: 3, type: arm_out, side: A}, {count: 5, type: arm_out, side: B}]}
+  - {n: 7,  act: "II. The reboot",  name: "First steps",      dancer: "Robot walk to A on 1 to 4, across to B on 5 to 8.", react: {track: true, lean: 0.8}}
+  - {n: 8,  act: "II. The reboot",  name: "Peekaboo",         dancer: "Surprised at A on 3, at B on 4; hands over face 5 and 6, open on 7, laugh 8.",
+         react: {gaze: 0.8, echo: true, triggers: [{when: hands_open, counts: [5, 7], action: pop, side: any}]},
+         cues: [{count: 7, type: hands_open}]}
+  - {n: 9,  act: "III. The spark",  name: "Hood off",         dancer: "Hood back on 2, shake out 3 and 4, step-touch to A 5 and 6, to B 7 and 8.",
+         react: {track: true, lean: 0.6, triggers: [{when: arms_up, counts: [0, 2], action: recoil, side: any}]},
+         cues: [{count: 1, type: arms_up}]}
+  - {n: 10, act: "III. The spark",  name: "Chicken peck",     dancer: "Funky chicken; knee pops on 5 to 8.", react: {energy: 1.0, gaze: 0.3}}
+  - {n: 11, act: "III. The spark",  name: "Circle",           dancer: "Skip a full circle: toward A, upstage, past B, back to center.", react: {track: true}}
+  - {n: 12, act: "III. The spark",  name: "Spin",             dancer: "Spin on 1 and 2, V on 3, watch the robots spin on 5 to 8.", react: {gaze: 0.4}}
+  - {n: 13, act: "IV. Switched on", name: "Running man",      dancer: "Running man, full energy.", react: {energy: 1.0, gaze: 0.3}}
+  - {n: 14, act: "IV. Switched on", name: "Running man turn", dancer: "Running man while turning a full circle.", react: {energy: 1.0}}
+  - {n: 15, act: "IV. Switched on", name: "Electro arms",     dancer: "Windmills 1-2, hand roll 3-4, sweep to A 5, to B 6, halo 7-8, step-touch throughout.",
+         react: {energy: 0.6, echo: true, triggers: [{when: arm_out, counts: [3, 6], action: pop, side: mine}]},
+         cues: [{count: 5, type: arm_out, side: A}, {count: 6, type: arm_out, side: B}]}
+  - {n: 16, act: "IV. Switched on", name: "Robot square",     dancer: "Head ticks to whichever robot moved on 1 to 4; robot arm hits on 5 to 8.", react: {gaze: 0.3}}
+  - {n: 17, act: "IV. Switched on", name: "The wave",         dancer: "Wave toward B on 2 and 3, back toward A on 6 and 7.", react: {}}
+  - {n: 18, act: "IV. Switched on", name: "Everybody",        dancer: "Running man 1 to 4, robot arm hits 5 to 8.", react: {energy: 1.0}}
+  - {n: 19, act: "IV. Switched on", name: "Full power",       dancer: "Jumps on 1 and 3; power pose on 5 and hold.",
+         react: {echo: true, triggers: [{when: jump, counts: [0, 4], action: cheer, side: any}, {when: arms_up, counts: [0, 4], action: cheer, side: any}]},
+         cues: [{count: 1, type: jump}, {count: 3, type: jump}]}

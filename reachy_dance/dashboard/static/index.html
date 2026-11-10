@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control Room · Reachoreo</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a; --text: #e7e9ee; --dim: #8a91a0;
+    --a: #4fb3ff; --b: #ff9f43; --dancer: #c58cff; --ok: #3ddc84; --warn: #ffcc4d; --err: #ff5c5c;
+    --act1: #39404d; --act2: #2f4a63; --act3: #6a4a1f; --act4: #6b2a3a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+  h1 span { color: var(--dim); font-weight: 400; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 10px; font-weight: 600; }
+  .links { display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+  .link { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--err); flex: none; }
+  .dot.on { background: var(--ok); }
+  main { padding: 12px 16px 40px; display: grid; gap: 12px; grid-template-columns: 1fr 1fr 1fr; max-width: 1500px; margin: 0 auto; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+  .full { grid-column: 1 / -1; }
+  /* transport */
+  .transport { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; }
+  .clock { font: 600 42px/1 var(--mono); letter-spacing: -.02em; }
+  .state { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 99px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; background: var(--panel2); color: var(--dim); }
+  .state.playing { background: #173d29; color: var(--ok); } .state.countdown { background: #3d3517; color: var(--warn); }
+  .state.paused { background: #3d3517; color: var(--warn); } .state.offline { background: #3d1717; color: var(--err); }
+  .now-phrase { font-size: 20px; font-weight: 600; }
+  .now-act { color: var(--dim); font-size: 12px; }
+  .counts { display: flex; gap: 6px; margin: 8px 0; }
+  .counts i { width: 26px; height: 26px; border-radius: 6px; background: var(--panel2); display: grid; place-items: center; font: 600 12px var(--mono); color: var(--dim); font-style: normal; }
+  .counts i.cur { background: var(--text); color: var(--bg); }
+  .counts i.win { box-shadow: inset 0 -3px 0 var(--dancer); }
+  .prompt { font-size: 15px; color: var(--dancer); }
+  .prompt b { color: var(--dim); font-weight: 500; font-size: 11px; letter-spacing: .08em; margin-right: 6px; }
+  .buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+  button, select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button:hover { border-color: var(--dim); }
+  button.primary { background: var(--ok); color: #06210f; border-color: var(--ok); font-weight: 600; }
+  button.danger { color: var(--err); }
+  button:disabled { opacity: .4; cursor: default; }
+  .toast { font-size: 12px; color: var(--dim); min-height: 1.2em; text-align: right; margin-top: 6px; }
+  /* alerts */
+  .alerts { display: flex; flex-direction: column; gap: 6px; }
+  .alert { padding: 8px 12px; border-radius: 8px; font-size: 13px; display: flex; gap: 10px; align-items: center; }
+  .alert.error { background: #3a1518; color: #ffb4b4; } .alert.warn { background: #3a3215; color: #ffe39a; }
+  .alert .age { margin-left: auto; color: var(--dim); font: 11px var(--mono); }
+  .allgood { color: var(--ok); font-size: 13px; }
+  /* robots */
+  .robot .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .robot .name { font-weight: 700; font-size: 18px; }
+  .robot.A .name { color: var(--a); } .robot.B .name { color: var(--b); }
+  .tag { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: var(--panel2); color: var(--dim); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat { background: var(--panel2); border-radius: 8px; padding: 6px 8px; }
+  .stat .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+  .stat .v { font: 600 15px var(--mono); }
+  .v.bad { color: var(--err); } .v.meh { color: var(--warn); }
+  .pose { display: grid; grid-template-columns: 44px 1fr 52px; gap: 4px 8px; align-items: center; font-size: 12px; }
+  .pose .lbl { color: var(--dim); font-family: var(--mono); }
+  .bar { position: relative; height: 14px; background: var(--panel2); border-radius: 4px; }
+  .bar .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+  .bar .sc { position: absolute; top: 1px; bottom: 1px; width: 3px; margin-left: -1.5px; background: var(--dim); border-radius: 2px; }
+  .bar .cm { position: absolute; top: 4px; height: 6px; width: 10px; margin-left: -5px; border-radius: 3px; }
+  .A .cm { background: var(--a); } .B .cm { background: var(--b); }
+  .diff { font-family: var(--mono); text-align: right; color: var(--dim); }
+  .diff.big { color: var(--warn); }
+  .legend { font-size: 11px; color: var(--dim); margin: 6px 0 10px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 6px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
+  canvas { width: 100%; display: block; }
+  .trace-head { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 4px; font-size: 11px; color: var(--dim); }
+  .trace-head select { padding: 2px 6px; font-size: 11px; }
+  .rx { list-style: none; padding: 0; margin: 10px 0 0; font: 12px var(--mono); max-height: 110px; overflow: auto; }
+  .rx li { padding: 2px 0; color: var(--dim); } .rx li b { color: var(--text); font-weight: 600; }
+  /* dancer */
+  .stage { position: relative; height: 120px; background: linear-gradient(#1b1f27, #15181e); border-radius: 8px; margin: 6px 0 12px; overflow: hidden; }
+  .stage .upstage { position: absolute; top: 6px; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--dim); letter-spacing: .1em; }
+  .stage .cam { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--dim); letter-spacing: .1em; }
+  .stage .bot { position: absolute; bottom: 22px; width: 34px; height: 22px; margin-left: -17px; border-radius: 8px 8px 4px 4px; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #0b0d10; }
+  .stage .center { position: absolute; bottom: 22px; width: 1px; height: 70px; background: var(--line); }
+  .stage .who { position: absolute; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--dancer); transition: left .1s linear, bottom .1s linear; box-shadow: 0 0 0 4px #c58cff33; }
+  .stage .ghost { position: absolute; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; border: 2px dashed var(--dim); transition: left .1s linear, bottom .1s linear; }
+  .stage.lost .who { opacity: .2; }
+  .meter { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+  .meter div { height: 100%; background: var(--dancer); width: 0; transition: width .15s; }
+  /* timeline */
+  .tl-wrap { position: relative; overflow-x: auto; }
+  .tl { position: relative; min-width: 900px; height: 132px; }
+  .tl .ph { position: absolute; top: 34px; height: 54px; border-right: 1px solid var(--bg); padding: 4px 5px; font-size: 10px; overflow: hidden; cursor: pointer; color: #dfe3ea; }
+  .tl .ph:hover { filter: brightness(1.25); }
+  .tl .ph.sel { outline: 2px solid var(--text); outline-offset: -2px; }
+  .tl .ph .n { font: 700 12px var(--mono); }
+  .tl .acts { position: absolute; top: 0; left: 0; right: 0; height: 16px; font-size: 10px; color: var(--dim); }
+  .tl .acts span { position: absolute; padding-left: 4px; border-left: 1px solid var(--line); white-space: nowrap; }
+  .tl .win { position: absolute; top: 82px; height: 4px; background: var(--dancer); border-radius: 2px; opacity: .8; }
+  .tl .mark { position: absolute; width: 2px; height: 10px; margin-left: -1px; border-radius: 1px; }
+  .tl .mark.A { top: 20px; background: var(--a); } .tl .mark.B { top: 92px; background: var(--b); }
+  .tl .mark.cue { top: 104px; height: 8px; width: 8px; margin-left: -4px; border-radius: 50%; background: var(--dancer); }
+  .tl .mark.alert { top: 116px; height: 8px; width: 8px; margin-left: -4px; transform: rotate(45deg); background: var(--warn); border-radius: 1px; }
+  .tl .head { position: absolute; top: 16px; bottom: 0; width: 2px; background: var(--text); margin-left: -1px; pointer-events: none; }
+  .tl-key { display: flex; gap: 14px; font-size: 11px; color: var(--dim); margin-top: 6px; flex-wrap: wrap; }
+  .tl-key i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .detail { margin-top: 10px; padding: 10px 12px; background: var(--panel2); border-radius: 8px; display: flex; gap: 16px; align-items: flex-start; }
+  .detail .txt { flex: 1; }
+  .detail .meta { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  /* log */
+  .log-tools { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .log-tools label { font-size: 12px; color: var(--dim); display: flex; gap: 4px; align-items: center; }
+  .log { height: 260px; overflow: auto; font: 12px/1.5 var(--mono); background: var(--panel2); border-radius: 8px; padding: 6px 10px; }
+  .log div { display: grid; grid-template-columns: 70px 56px 72px 76px 1fr; gap: 8px; white-space: nowrap; }
+  .log div span:last-child { white-space: normal; }
+  .log .k-alert { color: var(--warn); } .log .k-check { color: var(--warn); } .log .k-reaction.A { color: var(--a); } .log .k-reaction.B { color: var(--b); }
+  .log .k-cue { color: var(--dancer); } .log .k-command { color: var(--ok); } .log .k-phrase { color: var(--text); font-weight: 700; }
+  .log .t { color: var(--dim); }
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 1fr 1fr; } main > section { order: 3; }
+    .transport, #alerts-panel { order: 0 !important; } .robot { order: 1 !important; } .dancer-panel { grid-column: 1 / -1; order: 2 !important; }
+  }
+  @media (max-width: 720px) {
+    main { grid-template-columns: 1fr; padding: 10px 16px 40px; }
+    .transport { grid-template-columns: 1fr; } .buttons { justify-content: flex-start; }
+    .clock { font-size: 34px; } .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="tl-title">…</span> <span>· control room: every number, alert and log</span></h1>
+  <div class="links">
+    <div class="link"><span class="dot" id="l-conductor"></span>conductor</div>
+    <div class="link"><span class="dot" id="l-A"></span>Reachy A</div>
+    <div class="link"><span class="dot" id="l-B"></span>Reachy B</div>
+    <div class="link"><span class="dot" id="l-dancer"></span>perception</div>
+    <div class="link"><span class="dot" id="l-page"></span>dashboard</div>
+  </div>
+</header>
+
+<main>
+  <section class="panel full transport">
+    <div>
+      <div class="clock" id="clock">0:00.0</div>
+      <span class="state" id="state">offline</span>
+    </div>
+    <div>
+      <div class="now-act" id="now-act">&nbsp;</div>
+      <div class="now-phrase" id="now-phrase">Waiting for the conductor</div>
+      <div class="counts" id="counts"></div>
+      <div class="prompt" id="prompt"></div>
+    </div>
+    <div>
+      <div class="buttons">
+        <select id="from" aria-label="Start from phrase"></select>
+        <button class="primary" id="b-start">Start</button>
+        <button id="b-pause">Pause</button>
+        <button id="b-resume">Resume</button>
+        <button class="danger" id="b-stop">Stop</button>
+      </div>
+      <div class="toast" id="toast"></div>
+    </div>
+  </section>
+
+  <section class="panel full" id="alerts-panel">
+    <h2>Consistency checks</h2>
+    <div class="alerts" id="alerts"></div>
+  </section>
+
+  <section class="panel robot A" id="robot-A"></section>
+
+  <section class="panel dancer-panel">
+    <h2>Dancer</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div id="d-seen" style="font-weight:600">not seen</div>
+      <div style="font:12px var(--mono);color:var(--dim)" id="d-xy"></div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="upstage">UPSTAGE</div>
+      <div class="bot" style="left:20%;background:var(--a)">A</div>
+      <div class="center" style="left:50%"></div>
+      <div class="bot" style="left:80%;background:var(--b)">B</div>
+      <div class="ghost" id="ghost" title="where the score expects the dancer"></div>
+      <div class="who" id="who"></div>
+      <div class="cam">CAMERA / AUDIENCE</div>
+    </div>
+    <div class="legend"><span><i style="background:var(--dancer)"></i>seen</span><span><i style="border:1px dashed var(--dim);height:8px;width:8px;border-radius:50%"></i>scripted path</span></div>
+    <div style="font-size:12px;color:var(--dim)">Energy <span id="d-energy" style="font-family:var(--mono)"></span></div>
+    <div class="meter"><div id="d-meter"></div></div>
+    <h2 style="margin-top:14px">Recent cues</h2>
+    <ul class="rx" id="d-cues"></ul>
+  </section>
+
+  <section class="panel robot B" id="robot-B"></section>
+
+  <section class="panel full">
+    <h2 id="tl-h">Timeline</h2>
+    <div class="tl-wrap"><div class="tl" id="tl"></div></div>
+    <div class="tl-key">
+      <span><i style="background:var(--a)"></i>A reaction</span>
+      <span><i style="background:var(--b)"></i>B reaction</span>
+      <span><i style="background:var(--dancer)"></i>cue window / cue seen</span>
+      <span><i style="background:var(--warn)"></i>check</span>
+      <span>Click a phrase for details</span>
+    </div>
+    <div class="detail" id="detail" hidden></div>
+  </section>
+
+  <section class="panel full">
+    <h2>Event log</h2>
+    <div class="log-tools">
+      <label><input type="checkbox" data-k="phrase" checked>phrases</label>
+      <label><input type="checkbox" data-k="command" checked>commands</label>
+      <label><input type="checkbox" data-k="state" checked>states</label>
+      <label><input type="checkbox" data-k="reaction" checked>reactions</label>
+      <label><input type="checkbox" data-k="cue" checked>cues</label>
+      <label><input type="checkbox" data-k="alert" checked>checks</label>
+      <span style="flex:1"></span>
+      <label><input type="checkbox" id="follow" checked>follow</label>
+      <a href="/api/log.csv"><button>Export CSV</button></a>
+      <a href="/api/log.json"><button>Export JSON</button></a>
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEYS = ["yaw", "pitch", "roll", "body", "turn", "antL", "antR", "bob"];
+// display range per channel, in score units (see pose.py)
+const RANGE = { yaw: 1, pitch: 1, roll: 0.6, body: 1, turn: 6.4, antL: 3, antR: 3, bob: 20 };
+const ACT_COLOR = { "I. Off": "var(--act1)", "II. The reboot": "var(--act2)", "III. The spark": "var(--act3)", "IV. Switched on": "var(--act4)" };
+const SEC_COLOR = { Intro: "var(--act1)", Calm: "var(--act2)", Groove: "var(--act3)", Peak: "var(--act4)", Finale: "#7a5a12" };
+const actColor = a => ACT_COLOR[a] || SEC_COLOR[String(a).replace(/^[IVX]+\. /, "")] || "var(--panel2)";
+let TL = null, snap = null, selected = null;
+const traces = { A: [], B: [] };
+const traceKey = { A: "yaw", B: "yaw" };
+const log = [];
+
+function fmtTime(t) {
+  const neg = t < 0; t = Math.abs(t);
+  const m = Math.floor(t / 60), s = (t % 60).toFixed(1).padStart(4, "0");
+  return `${neg ? "−" : ""}${m}:${s}`;
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// ---------- robot cards ----------
+function buildRobot(side) {
+  const el = $("robot-" + side);
+  el.innerHTML = `
+    <div class="head"><span class="name">Reachy ${side}</span><span class="tag">${side === "A" ? "camera's left" : "camera's right"}</span>
+      <span class="tag" id="${side}-mode"></span><span class="dot" id="${side}-dot" style="margin-left:auto"></span></div>
+    <div class="stats">
+      <div class="stat"><div class="k">state</div><div class="v" id="${side}-state">–</div></div>
+      <div class="stat"><div class="k">phrase</div><div class="v" id="${side}-phrase">–</div></div>
+      <div class="stat"><div class="k">drift</div><div class="v" id="${side}-drift">–</div></div>
+      <div class="stat"><div class="k">dancer</div><div class="v" id="${side}-k">–</div></div>
+    </div>
+    <h2>Commanded vs score</h2>
+    <div class="legend"><span><i style="background:var(--dim);width:3px;height:12px"></i>score</span><span><i style="background:var(--${side.toLowerCase()})"></i>commanded (score + reactions)</span></div>
+    <div class="pose" id="${side}-pose">${KEYS.map(k => `
+      <span class="lbl">${k}</span>
+      <div class="bar"><div class="mid"></div><div class="sc" id="${side}-sc-${k}"></div><div class="cm" id="${side}-cm-${k}"></div></div>
+      <span class="diff" id="${side}-d-${k}"></span>`).join("")}
+    </div>
+    <div class="trace-head"><span>last 8 s</span><select id="${side}-tk">${KEYS.map(k => `<option>${k}</option>`).join("")}</select></div>
+    <canvas id="${side}-trace" height="70"></canvas>
+    <h2 style="margin-top:12px">Last reactions</h2>
+    <ul class="rx" id="${side}-rx"><li>none yet</li></ul>`;
+  $(side + "-tk").onchange = e => traceKey[side] = e.target.value;
+}
+
+function pct(k, v) { const r = RANGE[k]; return 50 + 50 * Math.max(-1, Math.min(1, v / r)); }
+
+function renderRobot(side, r) {
+  $(side + "-dot").className = $("l-" + side).className = "dot" + (r.connected ? " on" : "");
+  $(side + "-mode").textContent = r.dry_run === true ? "dry run" : r.dry_run === false ? "live" : "";
+  const st = $(side + "-state"); st.textContent = r.connected ? (r.lost ? "LOST" : r.state) : "offline";
+  st.className = "v" + (!r.connected || r.lost ? " bad" : "");
+  $(side + "-phrase").textContent = r.phrase ?? "–";
+  const d = $(side + "-drift");
+  d.textContent = r.drift_ms == null ? "–" : `${r.drift_ms > 0 ? "+" : ""}${r.drift_ms.toFixed(0)} ms`;
+  d.className = "v" + (r.drift_ms != null && Math.abs(r.drift_ms) > 40 ? " bad" : r.drift_ms != null && Math.abs(r.drift_ms) > 20 ? " meh" : "");
+  $(side + "-k").textContent = r.dancer_k == null || !r.connected ? "–" : Math.round(100 * r.dancer_k) + "%";
+  if (r.pose && r.score && r.connected) {
+    for (const k of KEYS) {
+      $(`${side}-sc-${k}`).style.left = pct(k, r.score[k]) + "%";
+      $(`${side}-cm-${k}`).style.left = pct(k, r.pose[k]) + "%";
+      const diff = r.pose[k] - r.score[k], el = $(`${side}-d-${k}`);
+      el.textContent = (diff >= 0 ? "+" : "") + diff.toFixed(2);
+      el.className = "diff" + (Math.abs(diff) > 0.15 * RANGE[k] ? " big" : "");
+    }
+    const tr = traces[side]; tr.push({ t: performance.now(), p: r.pose, s: r.score });
+    while (tr.length && performance.now() - tr[0].t > 8000) tr.shift();
+  }
+  const rx = r.reactions.slice().reverse();
+  $(side + "-rx").innerHTML = rx.length ? rx.map(x => `<li><b>${esc(x.action)}</b> ${esc(x.source)} · ${x.show_t.toFixed(2)} s · ${where(x.show_t)}</li>`).join("") : "<li>none yet</li>";
+}
+
+function drawTrace(side) {
+  const c = $(side + "-trace"), ctx = c.getContext("2d");
+  const w = c.clientWidth, h = 70, dpr = devicePixelRatio || 1;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#1e222b"; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "#2a2f3a"; ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+  const k = traceKey[side], tr = traces[side], now = performance.now(), r = RANGE[k];
+  const line = (key, color, width) => {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    tr.forEach((p, i) => {
+      const x = w - (now - p.t) / 8000 * w, y = h / 2 - (p[key][k] / r) * (h / 2 - 4);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  };
+  line("s", "#8a91a0", 1.5);
+  line("p", side === "A" ? "#4fb3ff" : "#ff9f43", 2);
+}
+
+// ---------- timeline ----------
+function where(t) {
+  if (!TL || t < 0) return "countdown";
+  const i = Math.min(TL.phrases.length - 1, Math.floor(t / TL.phrase_s));
+  return `${i + 1}.${Math.min(TL.beats, Math.floor((t - i * TL.phrase_s) / TL.beat) + 1)}`;
+}
+const X = t => (100 * t / TL.duration) + "%";
+
+function buildTimeline() {
+  const tl = $("tl"); let html = `<div class="acts">`;
+  let lastAct = null;
+  TL.phrases.forEach(p => { if (p.act !== lastAct) { html += `<span style="left:${X(p.start)}">${esc(p.act)}</span>`; lastAct = p.act; } });
+  html += `</div>`;
+  TL.phrases.forEach((p, i) => {
+    html += `<div class="ph" data-i="${i}" style="left:${X(p.start)};width:${100 * TL.phrase_s / TL.duration}%;background:${actColor(p.act)}" title="${esc(p.name)}: ${esc(p.dancer)}">
+      <div class="n">${p.n}</div><div>${esc(p.name)}</div></div>`;
+    p.windows.forEach(w => {
+      const a = p.start + (w.from - 1) * TL.beat, b = p.start + w.to * TL.beat;
+      html += `<div class="win" style="left:${X(a)};width:${100 * (b - a) / TL.duration}%" title="${esc(w.when)} → ${esc(w.action)} (${esc(w.side)}), counts ${w.from}–${w.to}"></div>`;
+    });
+  });
+  html += `<div id="tl-marks"></div><div class="head" id="tl-head"></div>`;
+  tl.innerHTML = html;
+  tl.querySelectorAll(".ph").forEach(el => el.onclick = () => select(+el.dataset.i));
+  $("from").innerHTML = TL.phrases.map(p => `<option value="${p.n}">from ${p.n} · ${esc(p.name)}</option>`).join("");
+}
+
+function select(i) {
+  selected = i; const p = TL.phrases[i];
+  document.querySelectorAll(".tl .ph").forEach(el => el.classList.toggle("sel", +el.dataset.i === i));
+  const r = p.react, bits = [];
+  if (r.track) bits.push("tracks the dancer"); if (r.gaze) bits.push(`gaze ${r.gaze}`); if (r.energy) bits.push(`energy ${r.energy}`);
+  if (r.lean) bits.push(`lean ${r.lean}`); if (r.echo) bits.push("echo between robots");
+  p.windows.forEach(w => bits.push(`${w.when} on ${w.from}–${w.to} → ${w.action} (${w.side === "mine" ? "robot pointed at" : "both"})`));
+  const d = $("detail"); d.hidden = false;
+  d.innerHTML = `<div class="txt"><b>${p.n}. ${esc(p.name)}</b> <span style="color:var(--dim)">· ${esc(p.act)} · ${fmtTime(p.start)}</span>
+    <div class="prompt" style="margin-top:4px">${esc(p.dancer)}</div>
+    <div class="meta">Robots: ${bits.length ? esc(bits.join(" · ")) : "score only, no reactions"}</div></div>
+    <button class="primary" id="b-here">Start here</button>`;
+  $("b-here").onclick = () => { $("from").value = p.n; send("start " + p.n); };
+}
+
+function renderTimeline() {
+  if (!TL || !snap) return;
+  const c = snap.clock;
+  $("tl-head").style.left = X(Math.max(0, Math.min(TL.duration, c.show_t)));
+  let html = "";
+  for (const side of ["A", "B"]) for (const e of log) if (e.kind === "reaction" && e.source === side)
+    html += `<div class="mark ${side}" style="left:${X(e.show_t)}" title="${esc(e.text)} at ${where(e.show_t)}"></div>`;
+  for (const e of log) if (e.kind === "cue") html += `<div class="mark cue" style="left:${X(e.show_t)}" title="${esc(e.text)} at ${where(e.show_t)}"></div>`;
+  for (const e of log) if (e.kind === "check" || (e.kind === "alert" && e.data.level !== "ok" && e.show_t >= 0))
+    html += `<div class="mark alert" style="left:${X(e.show_t)}" title="${esc(e.text)}"></div>`;
+  $("tl-marks").innerHTML = html;
+}
+
+// ---------- transport ----------
+function renderTransport() {
+  const c = snap.clock;
+  $("clock").textContent = fmtTime(c.show_t);
+  const st = c.connected ? c.state : "offline";
+  $("state").textContent = st; $("state").className = "state " + st;
+  $("l-conductor").className = "dot" + (c.connected ? " on" : "");
+  const live = c.connected && (c.state === "playing" || c.state === "countdown");
+  $("b-pause").disabled = !live; $("b-resume").disabled = !(c.connected && c.state === "paused");
+  $("b-stop").disabled = !c.connected || c.state === "idle" || c.state === "ended";
+  $("b-start").disabled = !c.connected;
+  const counts = $("counts");
+  if (!TL) return;
+  if (c.phrase === 0 && live) {
+    $("now-act").textContent = "countdown"; $("now-phrase").textContent = `Get in position · ${c.count}`;
+    $("prompt").innerHTML = `<b>NEXT</b>${esc(TL.phrases[0].dancer)}`;
+    counts.innerHTML = "";
+  } else if (live || c.state === "paused") {
+    const p = TL.phrases[c.phrase - 1];
+    $("now-act").textContent = p.act; $("now-phrase").textContent = `${p.n}. ${p.name}`;
+    $("prompt").innerHTML = `<b>DANCER</b>${esc(p.dancer)}`;
+    const inWin = n => p.windows.some(w => n >= w.from && n <= w.to);
+    counts.innerHTML = Array.from({ length: TL.beats }, (_, i) => `<i class="${i + 1 === c.count ? "cur" : ""} ${inWin(i + 1) ? "win" : ""}">${i + 1}</i>`).join("");
+  } else {
+    $("now-act").innerHTML = "&nbsp;";
+    $("now-phrase").textContent = c.connected ? (c.state === "ended" ? "Show stopped" : "Ready") : "Waiting for the conductor";
+    $("prompt").textContent = c.connected ? "" : "Run: python -m reachy_dance.conductor"; counts.innerHTML = "";
+  }
+}
+
+function renderAlerts() {
+  const a = snap.alerts, now = performance.now();
+  $("alerts").innerHTML = a.length
+    ? a.map(x => `<div class="alert ${x.level}"><span>${x.level === "error" ? "●" : "▲"}</span>${esc(x.text)}</div>`).join("")
+    : `<div class="allgood">✓ Both robots in step with the conductor and each other</div>`;
+}
+
+function renderDancer() {
+  const d = snap.dancer;
+  $("l-dancer").className = "dot" + (d.connected ? " on" : "");
+  $("d-seen").textContent = !d.connected ? "perception offline" : d.seen ? "seen" : "not seen";
+  $("d-seen").style.color = d.connected && d.seen ? "var(--dancer)" : "var(--dim)";
+  $("stage").classList.toggle("lost", !(d.connected && d.seen));
+  // stage px: A at 360, center 800, B at 1240 → 20%, 50%, 80%
+  const toPct = x => 50 + 30 * x / (TL ? TL.pos.B - TL.pos.C : 440);
+  if (d.seen && d.x != null) {
+    $("who").style.left = toPct(d.x) + "%"; $("who").style.bottom = (40 + 50 * (d.depth || 0)) + "px";
+    $("d-xy").textContent = `x ${d.x >= 0 ? "+" : ""}${d.x.toFixed(0)} px · depth ${(d.depth || 0).toFixed(2)}`;
+  } else $("d-xy").textContent = "";
+  const sp = scripted(snap.clock.show_t);
+  $("ghost").style.left = toPct(sp[0]) + "%"; $("ghost").style.bottom = (40 + 50 * sp[1]) + "px";
+  const e = d.energy ?? 0; $("d-meter").style.width = (100 * e) + "%"; $("d-energy").textContent = d.energy == null ? "" : e.toFixed(2);
+  $("d-cues").innerHTML = d.cues.length ? d.cues.slice().reverse().map(c => `<li><b>${esc(c.type)}</b>${c.side ? " → " + esc(c.side) : ""} · ${where(c.show_t)}</li>`).join("") : "<li>none yet</li>";
+}
+
+// Mirror of encendido.scripted_dancer, for the ghost marker only.
+function scripted(t) {
+  if (!TL) return [0, 0];
+  t = Math.min(Math.max(t, 0), TL.duration - 1e-4);
+  const i = Math.min(TL.phrases.length - 1, Math.floor(t / TL.phrase_s)), bl = (t - i * TL.phrase_s) / TL.beat, c = Math.floor(bl);
+  const cl = x => Math.min(1, Math.max(0, x)), ease = x => { x = cl(x); return x * x * (3 - 2 * x); }, lerp = (a, b, k) => a + (b - a) * k;
+  if (i === 6) return [c < 4 ? -150 * ease(bl / 3.4) : lerp(-150, 150, ease((bl - 4) / 3.4)), 0];
+  if (i === 7) return [c < 1 ? lerp(150, 0, ease(bl)) : 0, 0];
+  if (i === 8) { const v = [0, 0, 0, 0, -45, -45, 45, 45], cc = Math.min(7, c), prev = cc > 0 ? v[cc - 1] : v[0]; return [lerp(prev, v[cc], ease((bl - cc) / 0.16)), 0]; }
+  if (i === 10) { const th = 2 * Math.PI * bl / 8; return [-230 * Math.sin(th), (1 - Math.cos(th)) / 2]; }
+  if (i === 14) return [28 * Math.sin(Math.PI * bl), 0];
+  return [0, 0];
+}
+
+// ---------- log ----------
+const shown = () => new Set([...document.querySelectorAll(".log-tools input[data-k]")].filter(i => i.checked).map(i => i.dataset.k));
+function logRow(e) {
+  const k = e.kind === "check" ? "alert" : e.kind;
+  return `<div class="k-${e.kind} ${esc(e.source)}" data-k="${k}"><span class="t">${new Date(e.wall * 1000).toLocaleTimeString([], { hour12: false })}</span>
+    <span class="t">${fmtTime(e.show_t)}</span><span class="t">${e.phrase ? e.phrase + "." + e.count : "—"}</span><span>${esc(e.kind)}</span><span>${esc(e.text)}</span></div>`;
+}
+function appendLog(entries) {
+  if (!entries.length) return;
+  log.push(...entries);
+  const box = $("log"), s = shown();
+  box.insertAdjacentHTML("beforeend", entries.filter(e => s.has(e.kind === "check" ? "alert" : e.kind)).map(logRow).join(""));
+  if ($("follow").checked) box.scrollTop = box.scrollHeight;
+}
+document.querySelectorAll(".log-tools input[data-k]").forEach(i => i.onchange = () => {
+  const s = shown(); $("log").innerHTML = log.filter(e => s.has(e.kind === "check" ? "alert" : e.kind)).map(logRow).join("");
+});
+
+// ---------- commands ----------
+async function send(cmd) {
+  try {
+    const r = await fetch("/api/cmd", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cmd }) });
+    const j = await r.json(); toast(j.ok ? `${cmd}: ${j.msg}` : j.msg);
+  } catch (e) { toast("dashboard server unreachable"); }
+}
+let toastT; function toast(s) { $("toast").textContent = s; clearTimeout(toastT); toastT = setTimeout(() => $("toast").textContent = "", 4000); }
+$("b-start").onclick = () => send("start " + $("from").value);
+$("b-pause").onclick = () => send("pause");
+$("b-resume").onclick = () => send("resume");
+$("b-stop").onclick = () => send("stop");
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.code === "Space") { e.preventDefault(); snap?.clock.state === "paused" ? send("resume") : send("pause"); }
+});
+
+// ---------- stream ----------
+buildRobot("A"); buildRobot("B");
+function loadTimeline() {
+  return fetch("/api/timeline").then(r => r.json()).then(t => {
+    TL = t; buildTimeline();
+    $("tl-title").textContent = t.title || t.name;
+    $("tl-h").textContent = `Timeline · ${t.phrases.length} phrases × 8 counts · ${Math.round(t.bpm)} counts/min`;
+  });
+}
+loadTimeline();
+function connect() {
+  const es = new EventSource("/api/stream");
+  es.onopen = () => $("l-page").className = "dot on";
+  es.onerror = () => { $("l-page").className = "dot"; };
+  es.onmessage = ev => {
+    snap = JSON.parse(ev.data);
+    if (TL && snap.choreo?.name && snap.choreo.name !== TL.name && !connect.loading) { connect.loading = true; loadTimeline().finally(() => connect.loading = false); }
+    appendLog(snap.log);
+    renderTransport(); renderAlerts(); renderDancer();
+    renderRobot("A", snap.robots.A); renderRobot("B", snap.robots.B);
+    renderTimeline();
+  };
+}
+connect();
+(function loop() { drawTrace("A"); drawTrace("B"); requestAnimationFrame(loop); })();
+</script>
+<script type="module">
+import { mountNav } from "/static/nav.mjs";
+mountNav("control");
+</script>
+</body>
+</html>

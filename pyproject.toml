@@ -1,0 +1,26 @@
+[project]
+name = "reachoreo"
+version = "0.1.0"
+description = "Reachoreo: dance with two Reachy Mini robots. Song-to-choreography, live rehearsal, sync scoring and recording"
+requires-python = ">=3.10"
+dependencies = [
+  # Pin this to the exact version installed on both robots (pip show reachy-mini on each).
+  "reachy-mini",
+  "numpy",
+  "pyzmq",
+  "pyyaml",
+]
+
+[project.optional-dependencies]
+perception = ["mediapipe", "opencv-python"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["reachy_dance*"]
+
+[tool.setuptools.package-data]
+reachy_dance = ["choreography/*.yaml", "choreography/*.json", "dashboard/static/*"]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"

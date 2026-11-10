@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Make a Dance · Reachoreo</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  main { max-width: 1280px; }
+  section.card { margin-bottom: 18px; }
+  .shead { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .shead .num { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--panel2); border: 1px solid var(--line); flex: none; }
+  .card.done .shead .num { background: var(--ok); color: #06210f; border-color: var(--ok); }
+  .card.locked { opacity: .45; pointer-events: none; }
+  .drop { border: 2px dashed var(--line); border-radius: 16px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+  .drop:hover, .drop.over { border-color: var(--a); background: #7fe3ff0d; }
+  .drop b { font-size: 19px; display: block; margin-bottom: 4px; }
+  .file { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .file input[type=text] { flex: 1; min-width: 220px; font-size: 17px; font-weight: 700; }
+  .bpm { font: 800 46px/1 var(--mono); } .bpm small { font-size: 15px; color: var(--dim); font-weight: 600; margin-left: 6px; }
+  .beatgrid { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: center; }
+  .ctl { display: flex; flex-direction: column; gap: 8px; }
+  .ctl .row button { padding: 5px 11px; font-size: 13px; }
+  #wave { width: 100%; height: 120px; display: block; background: var(--panel2); border-radius: 12px; cursor: pointer; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--dim); margin-top: 6px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+  .split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; }
+  .stagewrap { position: relative; background: #121722; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .stagehud { position: absolute; left: 12px; top: 10px; right: 12px; display: flex; justify-content: space-between; pointer-events: none; text-shadow: 0 2px 8px #000; }
+  .stagehud .count { font: 800 44px/1 var(--mono); }
+  .stagehud .ph { text-align: right; font-weight: 700; } .stagehud .ph div { color: var(--dim); font-weight: 500; font-size: 13px; }
+  .transport { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .phrases { max-height: 470px; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+  .ph-row { display: grid; grid-template-columns: 30px 44px 1fr auto; gap: 8px; align-items: center; padding: 7px 9px; border-radius: 10px; background: var(--panel2); border: 1px solid transparent; cursor: pointer; }
+  .ph-row:hover { border-color: var(--line); } .ph-row.cur { border-color: var(--ref); background: #f2b54414; }
+  .ph-row .n { font: 700 13px var(--mono); color: var(--dim); } .ph-row .t { font: 12px var(--mono); color: var(--dim); }
+  .ph-row select { padding: 4px 6px; font-size: 13px; width: 100%; }
+  .ph-row .you { grid-column: 3 / 5; font-size: 12px; color: var(--dim); line-height: 1.35; }
+  .ph-row .sec { font-size: 11px; padding: 1px 8px; border-radius: 99px; white-space: nowrap; }
+  .ph-row .mir { padding: 3px 8px; font-size: 12px; } .ph-row .mir.on { background: #7fe3ff22; border-color: var(--a); color: var(--a); }
+  .online { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel2); font-size: 14px; }
+  .learn { display: flex; gap: 18px; font-size: 15px; margin: 10px 0; flex-wrap: wrap; }
+  .busy { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--dim); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 960px) { .split, .beatgrid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Make a dance from a song</h1>
+  <p class="lead">Drop in a song. The page finds its beat and bars, then builds a dance for you and both Reachys from moves they already know, fitted to the song's quiet and loud parts. Change any phrase, then teach it to the robots.</p>
+
+  <section class="card" id="c1">
+    <div class="shead"><span class="num">1</span><h2>Your song</h2></div>
+    <div class="drop" id="drop"><b>Drop a song here, or click to choose</b><span class="dim">MP3, M4A, WAV, OGG or FLAC · it stays on this computer (saved in library/)</span>
+      <input type="file" id="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac" hidden></div>
+    <div class="file" id="fileRow" hidden>
+      <input type="text" id="title" aria-label="Dance title" placeholder="Name your dance">
+      <span class="dim small" id="fileInfo"></span>
+      <button class="ghost" id="b-other">Choose another song</button>
+    </div>
+  </section>
+
+  <section class="card locked" id="c2">
+    <div class="shead"><span class="num">2</span><h2>The beat</h2><span class="dim small" id="anaInfo"></span></div>
+    <div class="beatgrid">
+      <div class="ctl">
+        <div class="bpm" id="bpm">–<small>BPM</small></div>
+        <div class="small dim" id="countInfo"></div>
+        <div class="row"><span class="small dim" style="width:64px">tempo</span><button id="t-half" title="Half as fast">½×</button><button id="t-down">−0.5</button><button id="t-up">+0.5</button><button id="t-double" title="Twice as fast">2×</button><button id="t-tap" title="Tap along with the music, 4 or more times">tap</button></div>
+        <div class="row"><span class="small dim" style="width:64px">counting</span><button id="c-1" title="One count on every beat">every beat</button><button id="c-2" title="One count every two beats: calmer moves for fast songs">every other beat</button></div>
+        <div class="row"><span class="small dim" style="width:64px">count 1</span><button id="d-early" title="Count 1 lands one beat earlier">◀ a beat earlier</button><button id="d-late" title="Count 1 lands one beat later">later ▶</button></div>
+        <div class="row"><span class="small dim" style="width:64px">length</span><input type="range" id="len" min="2" max="2" value="2" style="flex:1"><span class="mono small" id="lenInfo"></span></div>
+      </div>
+      <div>
+        <canvas id="wave"></canvas>
+        <div class="legend"><span><i style="background:var(--low)"></i>quiet</span><span><i style="background:var(--mid)"></i>medium</span><span><i style="background:var(--high)"></i>loud</span><span>each block is one 8-count phrase; the letter is the part of the song (same letter = sounds alike, danced alike) · click to listen from there</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card locked" id="c3">
+    <div class="shead"><span class="num">3</span><h2>Your choreography</h2>
+      <span id="quality" class="row" style="gap:6px"></span>
+      <span style="margin-left:auto" class="row"><button class="go" id="b-gen">Make my dance</button><button id="b-again" hidden title="A different mix of moves for the same song">🎲 Another version</button></span></div>
+    <div class="split">
+      <div>
+        <div class="stagewrap"><canvas id="stage"></canvas>
+          <div class="stagehud"><div class="count" id="hudCount"></div><div class="ph" id="hudPh"></div></div></div>
+        <div class="transport">
+          <button class="go" id="b-play">▶ Play preview</button>
+          <label class="small dim"><input type="checkbox" id="clicks" checked> click on each count</label>
+          <span class="mono small dim" id="pos">0:00</span>
+        </div>
+        <div class="online">
+          <b>Is there a known dance to this song?</b> <span class="dim">The page can't turn dance videos into robot moves, so the robots' part is always generated here. You can still learn a known human routine and dance it with them:</span>
+          <div class="row" style="margin-top:8px"><a id="yt" target="_blank" rel="noopener"><button class="ghost">Search YouTube tutorials ↗</button></a><a id="tt" target="_blank" rel="noopener"><button class="ghost">Search TikTok ↗</button></a></div>
+        </div>
+      </div>
+      <div>
+        <div class="small dim" style="margin-bottom:6px">Click a phrase to preview it. Change its move, or ⇄ mirror it so Reachy 2 leads instead of Reachy 1.</div>
+        <div class="phrases" id="phrases"><div class="dim">Press <b>Make my dance</b>.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card locked" id="cv">
+    <div class="shead"><span class="num">🎬</span><h2>Learn moves from a dance video</h2><span class="dim small">optional: a tutorial for this song, or a recording of yourself dancing it</span>
+      <span style="margin-left:auto" class="pill" id="vState">no video</span></div>
+    <div class="split">
+      <div>
+        <div class="stagewrap" style="background:#000" id="vbox">
+          <video id="vid" muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"></video>
+          <canvas id="vidOv" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+          <div class="drop" id="vdrop" style="position:absolute;inset:12px;display:grid;place-items:center"><div><b>Drop a dance video here, or click to choose</b>
+            <span class="dim">MP4, MOV or WebM with the song playing in it · the dancer fully in view, facing the camera</span></div></div>
+        </div>
+        <input type="file" id="vfile" accept="video/*,.mp4,.mov,.m4v,.webm" hidden>
+      </div>
+      <div class="ctl" style="gap:12px">
+        <div class="small dim" id="vInfo">The page listens to the video's soundtrack to find where it sits in your song, follows the dancer's body frame by frame,
+          and turns it into your part of the dance. Both Reachys then dance with it: antennas copy the arms, heads bounce with the knees and keep facing the dancer.</div>
+        <div class="row"><span class="small dim" style="width:96px">video starts at</span><input type="number" id="vOfsIn" step="0.1" style="width:90px" title="seconds into the song where the video's first frame is (negative: the video starts before the song)"><span class="small dim">s into the song</span><span id="vOfs" class="small"></span>
+          <button id="v-m1">−1 s</button><button id="v-m01">−0.1</button><button id="v-p01">+0.1</button><button id="v-p1">+1 s</button></div>
+        <label class="small"><input type="checkbox" id="vMirror"> it's a mirror tutorial (the dancer's right arm is on screen-right)</label>
+        <div class="row"><button class="go" id="b-learn" disabled>Learn the moves</button><button class="ghost" id="b-vother" hidden>Choose another video</button><span id="vProg" class="small dim"></span></div>
+        <div class="row"><span class="small dim">use it for phrases</span><input type="number" id="vFrom" min="1" style="width:70px"><span class="dim">to</span><input type="number" id="vTo" min="1" style="width:70px">
+          <button id="b-apply" disabled>Use in my dance</button><button class="ghost" id="b-unapply" hidden>Remove from dance</button></div>
+        <label class="small"><input type="checkbox" id="vKeep" checked> keep the video, to show it next to you on the rehearsal page</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card locked" id="c4">
+    <div class="shead"><span class="num">4</span><h2>Teach the Reachys</h2></div>
+    <div class="row">
+      <button class="go big" id="b-teach">Save &amp; teach both robots</button>
+      <button class="big" id="b-practice" disabled title="Both robots dance it now, with the music playing on this page">▶ Watch them dance it</button>
+      <button class="ghost" id="b-stop" hidden>■ Stop</button>
+      <a href="/perform"><button class="big ghost" id="b-rehearse" disabled>Rehearse with them →</button></a>
+    </div>
+    <div class="learn" id="learn"></div>
+    <div class="small dim">The robots switch to the new dance when no run is playing. Fast songs are counted every other beat, so the moves stay safe for the motors.</div>
+  </section>
+</main>
+<audio id="audio" preload="auto"></audio>
+
+<script type="module">
+import { mountNav, post, toast } from "/static/nav.mjs";
+import * as M from "/static/music.mjs";
+import * as LV from "/static/learn.mjs";
+import * as C from "/static/encendido-stage.mjs";
+import { makeShow, fmt } from "/static/choreo.mjs";
+import { SongSync } from "/static/songsync.mjs";
+const nav = mountNav("create");
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const audio = $("audio");
+const MOVES = (await fetch("/api/moves").then(r => r.json())).moves;
+
+let songSR = 44100;
+let F = null, A = null, raw = null, wavePeaks = null, slug = null, ext = null, fileName = "", choreo = null, show = null, savedSlug = null;
+let mode = "preview";          // preview: the page plays the song itself. practice: it follows the robots' show clock.
+const sync = new SongSync(audio);
+
+// ---------- 1. the song ----------
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+$("b-other").onclick = () => $("file").click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) useFile(e.dataTransfer.files[0]); };
+$("file").onchange = e => e.target.files[0] && useFile(e.target.files[0]);
+
+async function useFile(file) {
+  stopPreview();
+  fileName = file.name; ext = (file.name.match(/\.[a-z0-9]+$/i) || [".mp3"])[0].toLowerCase();
+  const title = file.name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").trim();
+  $("title").value = title; $("fileRow").hidden = false; drop.hidden = true;
+  $("fileInfo").innerHTML = `<span class="busy"></span>listening for the beat…`;
+  const buf = await file.arrayBuffer();
+  // Upload a copy (the robots' dance and the rehearsal page play it from library/), and analyse it here.
+  const up = fetch(`/api/songs?title=${encodeURIComponent(title)}&ext=${encodeURIComponent(ext)}`, { method: "POST", body: buf.slice(0) }).then(r => r.json());
+  try {
+    await analyse(buf);
+  } catch (e) {
+    $("fileInfo").innerHTML = `<span style="color:var(--err)">Couldn't read this file as audio (${esc(e.message || e)}). Try an MP3 or WAV.</span>`; return;
+  }
+  const u = await up;
+  if (!u.ok) { toast(u.msg || "upload failed"); return; }
+  slug = u.slug; savedSlug = null; choreo = null; show = null; done(1);
+  audio.src = `/library/${slug}/song`; audio.dataset.url = audio.src;
+  $("fileInfo").textContent = `${fileName} · ${fmt(A.duration_s)}`;
+  unlock(2); unlock(3); unlock("v"); lock(4); renderPhrases(); generate();
+}
+
+let bpcChoice = null;              // null: automatic (every other beat above 145 BPM)
+const phraseStart = i => A.count_times[8 * i] ?? (A.first_downbeat_s + i * phraseS());
+function countAt(t) {               // count position at song time t, on the tracked beats
+  const c = A.count_times, n = c.length - 1;
+  if (!n) return 0;
+  if (t <= c[0]) return (t - c[0]) / (c[1] - c[0]);
+  if (t >= c[n]) return n + (t - c[n]) / (c[n] - c[n - 1]);
+  let lo = 0, hi = n; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] <= t) lo = m; else hi = m; }
+  return lo + (t - c[lo]) / (c[lo + 1] - c[lo]);
+}
+async function analyse(buf, keep = null) {
+  const ctx = new AudioContext();
+  const decoded = await ctx.decodeAudioData(buf);
+  ctx.close();
+  raw = M.toMono(decoded); wavePeaks = M.peaks(raw, 1200);
+  await new Promise(r => setTimeout(r, 30));          // let the "listening" note paint first
+  const t0 = performance.now();
+  songSR = decoded.sampleRate;
+  F = M.features(raw, decoded.sampleRate);
+  if (keep?.bpc) bpcChoice = keep.bpc;
+  A = keep ? M.withTempo(F, keep.bpm, keep.downbeat, null, bpcChoice) : M.analyze(raw, decoded.sampleRate);
+  $("anaInfo").textContent = `analysed in ${Math.round(performance.now() - t0)} ms` + (A.confidence != null ? ` · beat ${A.confidence > .5 ? "clear" : A.confidence > .2 ? "fairly clear" : "unclear: check it by ear"}` : "");
+  setLength(keep?.phrases ?? A.phrase_energy.length);
+  showBeat();
+}
+
+// ---------- 2. the beat ----------
+function setLength(n) {
+  const max = A.phrase_energy.length;
+  $("len").max = Math.max(2, max); $("len").value = clamp(n, 2, max);
+  lenInfo();
+}
+function lenInfo() { const n = +$("len").value; $("lenInfo").textContent = `${n} phrases · ${fmt(phraseStart(n) - phraseStart(0))}${n === A.phrase_energy.length ? " (whole song)" : ""}`; }
+$("len").oninput = () => { lenInfo(); drawWave(); };
+$("len").onchange = () => choreo && generate(true);
+function showBeat() {
+  $("bpm").innerHTML = `${A.bpm.toFixed(1)}<small>BPM</small>`;
+  const r = A.tempo_range, drift = r && r[1] - r[0] >= 1.5 ? ` · the band drifts ${r[0].toFixed(0)}–${r[1].toFixed(0)} BPM: the counts follow it` : " · steady tempo";
+  $("countInfo").textContent = (A.beats_per_count === 1 ? "one count per beat" : A.beats_per_count === 2 ? `one count every 2 beats (${(A.bpm / 2).toFixed(1)} counts/min)` : "two counts per beat")
+    + ` · count 1 at ${A.first_downbeat_s.toFixed(2)} s${drift}`;
+  $("c-1").classList.toggle("go", A.beats_per_count === 1); $("c-2").classList.toggle("go", A.beats_per_count === 2);
+  drawWave();
+}
+function retime(bpm, downbeat = null) {
+  const n = +$("len").value;
+  A = M.withTempo(F, clamp(bpm, 40, 240), downbeat, null, bpcChoice);
+  setLength(Math.min(n, A.phrase_energy.length) || A.phrase_energy.length); showBeat();
+  if (choreo) generate(true);
+}
+$("t-half").onclick = () => retime(A.bpm / 2);
+$("t-double").onclick = () => retime(A.bpm * 2);
+$("t-down").onclick = () => retime(A.bpm - 0.5, A.first_downbeat_s);
+$("t-up").onclick = () => retime(A.bpm + 0.5, A.first_downbeat_s);
+// count 1 moves to the previous / next tracked beat
+const nearBeat = d => { const k = A.beats.reduce((bi, b, i) => Math.abs(b - A.first_downbeat_s) < Math.abs(A.beats[bi] - A.first_downbeat_s) ? i : bi, 0); return A.beats[clamp(k + d, 0, A.beats.length - 1)]; };
+$("d-early").onclick = () => retime(A.bpm, nearBeat(-1));
+$("d-late").onclick = () => retime(A.bpm, nearBeat(1));
+$("c-1").onclick = () => { bpcChoice = 1; retime(A.bpm, A.first_downbeat_s); };
+$("c-2").onclick = () => { bpcChoice = 2; retime(A.bpm, A.first_downbeat_s); };
+let taps = [];
+$("t-tap").onclick = () => {
+  const now = performance.now(); taps = taps.filter(t => now - t < 3000); taps.push(now);
+  if (taps.length >= 4) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); retime(Math.round(60000 / iv * 2) / 2); toast(`tapped ${(60000 / iv).toFixed(1)} BPM`); }
+  else toast(`keep tapping… ${4 - taps.length} more`);
+};
+
+const wave = $("wave");
+function phraseS() { return 8 * A.beats_per_count * 60 / A.bpm; }
+function levelColor(p, e) { return `var(--${p?.level || (e < .4 ? "low" : e < .7 ? "mid" : "high")})`; }
+function drawWave() {
+  if (!A) return;
+  const dpr = devicePixelRatio || 1, w = wave.clientWidth, h = wave.clientHeight;
+  wave.width = w * dpr; wave.height = h * dpr;
+  const g = wave.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const X = t => t / A.duration_s * w, n = +$("len").value;
+  const css = getComputedStyle(document.documentElement), col = v => css.getPropertyValue(v.slice(4, -1)).trim() || "#888";
+  A.phrase_energy.forEach((e, i) => {
+    const t0 = phraseStart(i), t1 = phraseStart(i + 1), p = choreo?.phrases[i];
+    g.globalAlpha = i < n ? 0.55 : 0.12; g.fillStyle = col(levelColor(p, e));
+    g.fillRect(X(t0) + 1, h - 14 - e * (h - 30), Math.max(1, X(t1) - X(t0) - 2), e * (h - 30));
+    g.globalAlpha = i < n ? 0.9 : 0.3; g.fillRect(X(t0) + 1, h - 10, Math.max(1, X(t1) - X(t0) - 2), 8);
+    const lab = A.phrase_labels?.[i];
+    if (lab && (i === 0 || A.phrase_labels[i - 1] !== lab)) { g.globalAlpha = i < n ? 1 : 0.4; g.fillStyle = "#ede9ff"; g.font = "700 11px sans-serif"; g.fillText(lab, X(t0) + 3, 12); g.fillRect(X(t0), 0, 1, h - 12); }
+  });
+  g.globalAlpha = 1; g.fillStyle = "#ede9ffaa";
+  for (let i = 0; i < wavePeaks.length; i++) { const v = wavePeaks[i] * (h - 30) / 2; g.fillRect(i / wavePeaks.length * w, (h - 14) / 2 - v, Math.max(1, w / wavePeaks.length - 0.3), 2 * v); }
+  g.fillStyle = "#ffffff22"; for (const b of A.beats) g.fillRect(X(b), 0, 1, 6);
+  g.fillStyle = "#f2b544"; g.fillRect(X(A.first_downbeat_s) - 1, 0, 2, h);
+  const t = audio.currentTime || 0; g.fillStyle = "#fff"; g.fillRect(X(t) - 1, 0, 2, h);
+}
+wave.onclick = e => {
+  if (!A) return;
+  const t = e.offsetX / wave.clientWidth * A.duration_s, i = Math.floor(countAt(t) / 8);
+  playFrom(Math.max(0, i >= 0 && i < A.phrase_energy.length ? phraseStart(i) : t));
+};
+addEventListener("resize", () => drawWave());
+
+// ---------- 3. the choreography ----------
+async function generate(keepSeed = false) {
+  const n = +$("len").value;
+  if (!keepSeed) seed = Math.floor(Math.random() * 1e6);
+  const r = await post("/api/generate", { title: $("title").value || "My song", seed, slug,
+    analysis: { bpm: A.bpm, first_downbeat_s: A.first_downbeat_s, duration_s: A.duration_s, phrase_energy: A.phrase_energy.slice(0, n), file: fileName,
+                count_times: A.count_times.slice(0, 8 * n + 1), phrase_labels: A.phrase_labels.slice(0, n), tempo_range: A.tempo_range, beats_per_count: A.beats_per_count,
+                phrase_accents: A.phrase_accents.slice(0, n) } });
+  if (!r.ok) { toast(r.msg); return; }
+  choreo = r.choreo; choreo.slug = slug; TEXTS = r.texts || [];
+  if (V.applied) { applyLearned(V.applied[0], V.applied[1], false); await rebuild(true); } else rebuild(false);
+  $("b-again").hidden = false; $("b-gen").textContent = "Start over"; done(3); unlock(4);
+}
+let seed = 0;
+$("b-gen").onclick = () => generate();
+$("b-again").onclick = () => generate();
+$("title").onchange = () => { if (choreo) { choreo.title = $("title").value; } setLinks(); };
+
+const swap = s => s.replace(/Reachy 1/g, "\0").replace(/Reachy 2/g, "Reachy 1").replace(/\0/g, "Reachy 2");
+let TEXTS = [];                     // the server's names and instructions per phrase (whole moves or stitched halves)
+function texts(p, i) {
+  if (TEXTS[i]) return TEXTS[i];
+  const m = MOVES[p.src];
+  return p.mirror ? { name: m.name + " (mirrored)", you: swap(m.you), A: swap(m.B), B: swap(m.A) } : { name: m.name, you: m.you, A: m.A, B: m.B };
+}
+function timelineOf(ch) {
+  const beat = 60 / ch.count_bpm, PH = 8 * beat;
+  return { name: ch.slug, title: ch.title, beat, phrase_s: PH, beats: 8, duration: ch.counts ? ch.counts[ch.counts.length - 1] : ch.phrases.length * PH, counts: ch.counts, learned: ch.learned,
+    song: { url: `/library/${slug}/song`, ...ch.song },
+    phrases: ch.phrases.map((p, i) => { const t = texts(p, i); return { n: i + 1, src: p.src, mirror: p.mirror, halves: p.halves, learned: !!p.learned, act: p.section, name: t.name, dancer: t.you, robots: { A: t.A, B: t.B }, cues: [] }; }) };
+}
+// After a change, ask the server to re-score the dance (rhythm, flow) and re-word the phrases, then redraw.
+async function rebuild(rescore = true) {
+  if (rescore || !choreo.quality) {
+    if (!choreo.accents && A?.phrase_accents) choreo.accents = A.phrase_accents.slice(0, choreo.phrases.length);
+    const r = await post("/api/assess", { choreo });
+    if (r.ok) { choreo.quality = r.quality; TEXTS = r.texts; }
+  }
+  show = makeShow(timelineOf(choreo));
+  savedSlug = null; $("b-practice").disabled = true; $("b-rehearse").disabled = true;
+  renderPhrases(); drawWave(); setLinks(); showQuality();
+}
+function showQuality() {
+  const q = choreo?.quality, el = $("quality");
+  if (!q) { el.innerHTML = ""; return; }
+  const pill = (v, good, txt, tip) => `<span class="pill ${v == null ? "" : v >= good ? "ok" : v >= good - 15 ? "warn" : "err"}" title="${tip}">${txt}</span>`;
+  el.innerHTML = pill(q.rhythm, 70, `♪ rhythm ${q.rhythm ?? "–"}%`, "how well the moves' hits land on the song's accents (drums, stabs)")
+    + " " + pill(q.flow, 75, `⤳ smooth joins ${q.flow}%`, "how many joins between pieces need almost no jump") + ` <span class="dim small">${q.variety} different pieces</span>`;
+}
+function renderPhrases() {
+  if (!choreo) { $("phrases").innerHTML = `<div class="dim">Press <b>Make my dance</b>.</div>`; return; }
+  const opts = MOVES.map((m, k) => `<option value="${k}">${esc(m.name)}</option>`).join("");
+  const qp = choreo.quality?.phrases || [];
+  $("phrases").innerHTML = choreo.phrases.map((p, i) => `<div class="ph-row" data-i="${i}">
+    <span class="n">${i + 1}</span><span class="t">${fmt(phraseStart(i))}</span>
+    <select aria-label="Move for phrase ${i + 1}">${p.learned ? `<option value="learned">🎬 From your video</option>` : p.halves ? `<option value="mix">${esc(texts(p, i).name)}</option>` : ""}${opts}</select>
+    <span class="row" style="gap:6px;flex-wrap:nowrap"><span class="sec" style="background:${levelColor(p)}33;color:${levelColor(p)}">${esc(p.section.replace(/^[IVX]+\. /, ""))}</span>
+      <button class="mir ${p.mirror ? "on" : ""}" title="Mirror: swap what Reachy 1 and Reachy 2 do">⇄</button></span>
+    <div class="you">${badges(qp[i])}${esc(texts(p, i).you)}</div></div>`).join("");
+  $("phrases").querySelectorAll(".ph-row").forEach(row => {
+    const i = +row.dataset.i, sel = row.querySelector("select");
+    sel.value = choreo.phrases[i].learned ? "learned" : choreo.phrases[i].halves ? "mix" : choreo.phrases[i].src;
+    sel.onclick = e => e.stopPropagation();
+    sel.onchange = async () => { if (sel.value === "mix" || sel.value === "learned") return; const p = choreo.phrases[i]; p.src = +sel.value; delete p.halves; delete p.learned; await rebuild(); seekPhrase(i); };
+    row.querySelector(".mir").onclick = async e => {
+      e.stopPropagation(); const p = choreo.phrases[i]; p.mirror = !p.mirror;
+      if (p.halves) p.halves = p.halves.map(h => ({ ...h, mirror: !h.mirror }));
+      await rebuild(); seekPhrase(i);
+    };
+    row.onclick = () => seekPhrase(i);
+  });
+}
+function seekPhrase(i) { playFrom(phraseStart(i)); }
+function badges(q) {
+  if (!q) return "";
+  const r = q.rhythm == null ? "" : `<span class="pill ${q.rhythm >= 0.5 ? "ok" : q.rhythm >= 0.2 ? "warn" : "err"}" title="its hits vs the song's accents (-1 to 1)">♪ ${q.rhythm.toFixed(1)}</span> `;
+  const f = q.flow_in != null && q.flow_in > 1.2 ? `<span class="pill warn" title="the pose jumps coming into this phrase (crossfaded, but visible)">jumpy join</span> ` : "";
+  return r + f;
+}
+function setLinks() {
+  const q = encodeURIComponent(($("title").value || "") + " dance tutorial");
+  $("yt").href = `https://www.youtube.com/results?search_query=${q}`;
+  $("tt").href = `https://www.tiktok.com/search?q=${q}`;
+}
+
+// ---------- preview: the song plays here and the stage follows it ----------
+let actx = null, lastCount = null;
+function click(accent) {
+  if (!$("clicks").checked) return;
+  actx ||= new AudioContext();
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.frequency.value = accent ? 1320 : 880; g.gain.setValueAtTime(accent ? .25 : .12, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, actx.currentTime + .06);
+  o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime + .07);
+}
+function playFrom(t) {
+  if (mode === "practice") return toast("stop the robots' run first");
+  audio.currentTime = t; audio.play().catch(() => {}); $("b-play").textContent = "❚❚ Pause";
+}
+function stopPreview() { audio.pause(); $("b-play").textContent = "▶ Play preview"; }
+$("b-play").onclick = () => audio.paused ? playFrom(audio.currentTime >= (show ? A.first_downbeat_s + show.DUR : A.duration_s) - 0.1 ? Math.max(0, A.first_downbeat_s - 2) : audio.currentTime || Math.max(0, A.first_downbeat_s - 2)) : stopPreview();
+audio.onended = stopPreview;
+
+const sc = $("stage"), sctx = sc.getContext("2d");
+let snap = null, snapAt = 0;
+function showTimeNow() {
+  if (mode === "practice" && snap) { const on = snap.clock.state === "playing" || snap.clock.state === "countdown"; return snap.clock.show_t + (on ? (performance.now() - snapAt) / 1000 : 0); }
+  return (audio.currentTime || 0) - (A?.first_downbeat_s || 0);
+}
+function frame() {
+  const dpr = Math.min(2, devicePixelRatio || 1), w = sc.clientWidth, h = sc.clientHeight;
+  if (sc.width !== Math.round(w * dpr)) { sc.width = Math.round(w * dpr); sc.height = Math.round(h * dpr); }
+  sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.fillStyle = "#121722"; sctx.fillRect(0, 0, sc.width, sc.height);
+  const t = showTimeNow();
+  if (A) {
+    const c = show ? show.countOf(t) : countAt(t + A.first_downbeat_s);      // on the tracked beats, not an even grid
+    if (!audio.paused || mode === "practice") {
+      const n = Math.floor(c + 1e-3);
+      if (n !== lastCount) { lastCount = n; if (c > -4 && (!show || t < show.DUR)) click(((n % 8) + 8) % 8 === 0); }
+    }
+    $("hudCount").textContent = c < 0 ? (c > -4 ? Math.ceil(-c) : "") : (Math.floor(c) % 8) + 1;
+    $("pos").textContent = `${fmt(Math.max(0, audio.currentTime || 0))} / ${fmt(A.duration_s)}`;
+  }
+  if (show) {
+    const tt = clamp(t, 0, show.DUR - 1e-3), S = show.poseAt(tt), i = show.phraseAt(tt);
+    const s = Math.min(sc.width / C.VW, sc.height / C.VH);
+    sctx.setTransform(s, 0, 0, s, (sc.width - C.VW * s) / 2, (sc.height - C.VH * s) / 2);
+    C.setContext(sctx);
+    C.drawKitchen({ ...S.lt, M: 1 }, C.POS.C + S.H.x, tt);
+    C.drawRobot(C.POS.L, S.L); C.drawRobot(C.POS.R, S.R); C.drawHuman(S.H);
+    sctx.fillStyle = "rgba(237,233,255,.6)"; sctx.font = "600 26px sans-serif"; sctx.textAlign = "center";
+    sctx.fillText("Reachy 1", C.POS.L, 860); sctx.fillText("You", C.POS.C, 860); sctx.fillText("Reachy 2", C.POS.R, 860);
+    $("hudPh").innerHTML = t < 0 ? "get ready" : `${i + 1}. ${esc(show.PHRASES[i].you)}<div>${esc(show.PHRASES[i].act)}</div>`;
+    document.querySelectorAll(".ph-row").forEach(r => r.classList.toggle("cur", +r.dataset.i === i && t >= 0));
+  }
+  if (!audio.paused || mode === "practice") drawWave();
+  if (mode === "practice" && snap) sync.update(snap.clock.state, showTimeNow());
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- 4. teach the robots ----------
+$("b-teach").onclick = async () => {
+  if (!choreo) return;
+  stopPreview();
+  choreo.title = $("title").value || choreo.title;
+  const s = await post("/api/library/save", { choreo });
+  if (!s.ok) { toast(s.msg); return; }
+  choreo = s.choreo; savedSlug = choreo.slug;
+  if (V.file && $("vKeep").checked && choreo.phrases.some(p => p.learned)) {
+    toast("Saving the video…", 20000);
+    const ext = (V.file.name.match(/\.[a-z0-9]+$/i) || [".mp4"])[0].toLowerCase();
+    const u = await fetch(`/api/videos?slug=${encodeURIComponent(savedSlug)}&ext=${encodeURIComponent(ext)}`, { method: "POST", body: V.file }).then(r => r.json()).catch(() => ({ ok: false }));
+    if (!u.ok) toast("The dance is saved, but the video couldn't be stored: " + (u.msg || "upload failed"), 6000);
+  }
+  history.replaceState(null, "", `/create?slug=${encodeURIComponent(savedSlug)}`);
+  const r = await post("/api/activate", { slug: savedSlug });
+  toast(r.ok ? (r.msg === "sent" ? "Saved. Teaching both robots…" : `Saved, but ${r.msg}`) : r.msg, 5000);
+};
+$("b-practice").onclick = async () => {
+  stopPreview(); mode = "practice"; practiceRan = false;
+  sync.load(`/library/${savedSlug}/song`, choreo.song.first_downbeat_s);
+  audio.play().then(() => audio.pause()).catch(() => {});      // unlock audio inside the click
+  const r = await post("/api/cmd", { cmd: `start 1 ${choreo.phrases.length}` });
+  toast(r.ok ? "Robots: 8 counts, then go" : r.msg);
+  $("b-stop").hidden = false;
+};
+$("b-stop").onclick = async () => { await post("/api/cmd", { cmd: "stop" }); };
+
+nav.onState(s => {
+  const learned = side => savedSlug && s.robots[side].connected && s.robots[side].choreo === savedSlug;
+  const line = side => !s.robots[side].connected ? `<span class="dim">Reachy ${side === "A" ? 1 : 2}: offline</span>`
+    : learned(side) ? `<span style="color:var(--ok)">✓ Reachy ${side === "A" ? 1 : 2} learned it</span>`
+    : savedSlug ? `<span style="color:var(--warn)"><span class="busy"></span>Reachy ${side === "A" ? 1 : 2} learning…</span>` : `<span class="dim">Reachy ${side === "A" ? 1 : 2}: ready</span>`;
+  $("learn").innerHTML = line("A") + line("B") + (savedSlug && s.choreo?.name === savedSlug ? `<span style="color:var(--ok)">✓ Conductor loaded it</span>` : "");
+  const ready = savedSlug && s.choreo?.name === savedSlug && s.clock.connected;
+  $("b-practice").disabled = !ready || mode === "practice"; $("b-rehearse").disabled = !ready;
+  if (ready && learned("A") && learned("B")) done(4);
+});
+let practiceRan = false;
+const es = new EventSource("/api/stream");
+es.onmessage = ev => {
+  snap = JSON.parse(ev.data); snapAt = performance.now();
+  if (mode !== "practice") return;
+  const st = snap.clock.state;
+  if (st === "countdown" || st === "playing") practiceRan = true;
+  else if (practiceRan && (st === "ended" || st === "idle")) { mode = "preview"; practiceRan = false; audio.pause(); $("b-stop").hidden = true; }
+};
+
+// ---------- learning from a video ----------
+const V = { file: null, url: null, offset: 0, sure: null, frames: [], tracks: null, applied: null, running: false };
+const vid = $("vid"), vov = $("vidOv"), vctx = vov.getContext("2d");
+const songEnd = () => A.count_times[A.count_times.length - 1];
+function showOffset() {
+  $("vOfsIn").value = V.offset.toFixed(2);
+  $("vOfs").innerHTML = V.sure == null ? "" : V.sure > 0.5 ? `<span style="color:var(--ok)">matched by ear ✓</span>` : V.sure > 0.15 ? `<span style="color:var(--warn)">probably right: check it</span>` : `<span style="color:var(--err)">the song isn't in the video: set it by hand</span>`;
+}
+$("vOfsIn").onchange = () => { const v = parseFloat($("vOfsIn").value); if (Number.isFinite(v)) { V.offset = v; V.sure = null; V.tracks = null; showOffset(); $("b-apply").disabled = true; } };
+for (const [id, d] of [["v-m1", -1], ["v-m01", -0.1], ["v-p01", 0.1], ["v-p1", 1]]) $(id).onclick = () => { V.offset = Math.round((V.offset + d) * 100) / 100; V.tracks = null; showOffset(); $("b-apply").disabled = true; };
+$("vdrop").onclick = () => $("vfile").click();
+$("b-vother").onclick = () => $("vfile").click();
+$("vbox").ondragover = e => { e.preventDefault(); $("vdrop").classList.add("over"); };
+$("vbox").ondragleave = () => $("vdrop").classList.remove("over");
+$("vbox").ondrop = e => { e.preventDefault(); $("vdrop").classList.remove("over"); if (e.dataTransfer.files[0]) useVideo(e.dataTransfer.files[0]); };
+$("vfile").onchange = e => e.target.files[0] && useVideo(e.target.files[0]);
+async function useVideo(file) {
+  if (!A) return toast("choose the song first");
+  V.file = file; V.tracks = null; V.frames = [];
+  if (V.url) URL.revokeObjectURL(V.url);
+  V.url = URL.createObjectURL(file); vid.src = V.url; $("vdrop").hidden = true; $("b-vother").hidden = false;
+  await new Promise(r => { vid.onloadedmetadata = r; vid.onerror = r; });
+  if (!vid.videoWidth) { $("vInfo").innerHTML = `<span style="color:var(--err)">This browser can't play that video. Try an MP4 (H.264).</span>`; return; }
+  $("vState").textContent = `${vid.videoWidth}×${vid.videoHeight} · ${fmt(vid.duration)}`;
+  $("vProg").innerHTML = `<span class="busy"></span>finding where it sits in the song…`;
+  V.offset = A.count_times[0]; V.sure = null;
+  try {
+    const ctx = new AudioContext({ sampleRate: songSR });            // same rate as the song, so the envelopes line up
+    const buf = await ctx.decodeAudioData(await file.arrayBuffer()); ctx.close();
+    const Fv = M.features(M.toMono(buf), buf.sampleRate);
+    const o = LV.findOffset(F.flux, Fv.flux, F.fps);
+    V.offset = Math.round(o.offset_s * 100) / 100; V.sure = o.confidence;
+  } catch { V.sure = 0; }
+  showOffset();
+  $("vProg").textContent = V.sure > 0.15 ? "" : "Couldn't hear this song in the video: type where in the song the video starts.";
+  $("b-learn").disabled = false;
+  vid.currentTime = Math.max(0, A.count_times[0] - V.offset);
+}
+let landmarker = null;
+async function loadModel() {
+  const { PoseLandmarker, FilesetResolver } = await import("/static/vendor/mediapipe/vision_bundle.mjs");
+  const files = await FilesetResolver.forVisionTasks("/static/vendor/mediapipe/wasm");
+  const opts = d => ({ baseOptions: { modelAssetPath: "/models/pose_landmarker_full.task", delegate: d }, runningMode: "VIDEO", numPoses: 1 });
+  try { return await PoseLandmarker.createFromOptions(files, opts("GPU")); } catch { return await PoseLandmarker.createFromOptions(files, opts("CPU")); }
+}
+const BONES = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[0,11],[0,12]];
+function drawSkeleton(lm) {
+  const w = vov.clientWidth, h = vov.clientHeight, dpr = devicePixelRatio || 1;
+  if (vov.width !== Math.round(w * dpr)) { vov.width = Math.round(w * dpr); vov.height = Math.round(h * dpr); }
+  vctx.setTransform(dpr, 0, 0, dpr, 0, 0); vctx.clearRect(0, 0, w, h);
+  if (!lm || !vid.videoWidth) return;
+  const s = Math.min(w / vid.videoWidth, h / vid.videoHeight), ox = (w - vid.videoWidth * s) / 2, oy = (h - vid.videoHeight * s) / 2;
+  const P = i => [ox + lm[i].x * vid.videoWidth * s, oy + lm[i].y * vid.videoHeight * s];
+  vctx.strokeStyle = "#f27aa8"; vctx.lineWidth = 4; vctx.lineCap = "round";
+  for (const [a, b] of BONES) if ((lm[a].visibility ?? 1) > .5 && (lm[b].visibility ?? 1) > .5) { vctx.beginPath(); vctx.moveTo(...P(a)); vctx.lineTo(...P(b)); vctx.stroke(); }
+}
+$("b-learn").onclick = async () => {
+  if (V.running) { V.running = false; return; }
+  $("b-learn").textContent = "■ Stop"; $("vProg").innerHTML = `<span class="busy"></span>loading the pose model…`;
+  landmarker ||= await loadModel();
+  const t0 = Math.max(0, A.count_times[0] - V.offset), t1 = Math.min(vid.duration, songEnd() - V.offset);
+  if (t1 - t0 < 2) { toast("the video doesn't overlap the dance: check where it starts"); $("b-learn").textContent = "Learn the moves"; return; }
+  V.frames = []; V.running = true; let lastTs = -1;
+  vid.muted = true; vid.currentTime = t0; await new Promise(r => vid.onseeked = r);
+  vid.playbackRate = 2;
+  await new Promise(done => {
+    const onFrame = (now, meta) => {
+      if (!V.running || meta.mediaTime >= t1 || vid.ended) { vid.pause(); return done(); }
+      let ts = Math.round(meta.mediaTime * 1000); if (ts <= lastTs) ts = lastTs + 1; lastTs = ts;
+      const res = landmarker.detectForVideo(vid, ts), lm = res.landmarks?.[0] || null;
+      V.frames.push({ t: meta.mediaTime, lm: lm ? lm.map(p => ({ x: p.x, y: p.y, visibility: p.visibility })) : null });
+      drawSkeleton(lm);
+      const pc = Math.round(100 * (meta.mediaTime - t0) / (t1 - t0)), seen = V.frames.filter(f => f.lm).length;
+      $("vProg").textContent = `learning… ${pc}% · dancer seen in ${Math.round(100 * seen / V.frames.length)}% of frames`;
+      vid.requestVideoFrameCallback(onFrame);
+    };
+    vid.requestVideoFrameCallback(onFrame);
+    vid.play().catch(done);
+  });
+  V.running = false; $("b-learn").textContent = "Learn again";
+  const poses = LV.framesToPoses(V.frames, vid.videoWidth, vid.videoHeight, $("vMirror").checked);
+  const tracks = LV.trackOnCounts(poses, V.offset, A.count_times);
+  V.tracks = tracks.map(t => t ? LV.learnedPhrase(t) : null);
+  const covered = V.tracks.map((t, i) => t ? i + 1 : null).filter(Boolean);
+  if (!covered.length) { $("vProg").textContent = "No phrase was fully covered with the dancer in view. Check the start time, or try a video with the whole body visible."; return; }
+  $("vFrom").value = covered[0]; $("vTo").value = covered[covered.length - 1]; $("vFrom").max = $("vTo").max = choreo.phrases.length;
+  $("vProg").textContent = `learned ${covered.length} phrase${covered.length > 1 ? "s" : ""} (${covered[0]}–${covered[covered.length - 1]}) from ${V.frames.length} frames`;
+  $("vState").textContent = `learned ${covered.length} phrases`; $("vState").className = "pill ok";
+  $("b-apply").disabled = false;
+};
+function applyLearned(from, to, toastIt = true) {
+  if (!V.tracks || !choreo) return 0;
+  choreo.learned = { steps: LV.STEPS, phrases: {}, video: { offset_s: V.offset, mirrored: $("vMirror").checked, file: V.file?.name } };
+  let n = 0;
+  choreo.phrases.forEach((p, i) => {
+    if (i + 1 >= from && i + 1 <= to && V.tracks[i] && i < choreo.phrases.length - 0) { p.learned = true; delete p.halves; choreo.learned.phrases[String(i)] = V.tracks[i]; n++; }
+    else delete p.learned;
+  });
+  V.applied = [from, to];
+  if (toastIt) toast(n ? `${n} phrases now follow the video` : "no learned phrases in that range");
+  $("b-unapply").hidden = !n;
+  return n;
+}
+$("b-apply").onclick = async () => { if (applyLearned(+$("vFrom").value, +$("vTo").value)) { await rebuild(); seekPhrase(+$("vFrom").value - 1); } };
+$("b-unapply").onclick = async () => { choreo.phrases.forEach(p => delete p.learned); delete choreo.learned; V.applied = null; $("b-unapply").hidden = true; await rebuild(); };
+// while previewing, show the video at the same song moment
+function syncVideo() {
+  if (V.running || !vid.src || !vid.videoWidth) return;
+  const t = (audio.currentTime || 0) - V.offset;
+  if (!audio.paused && t >= 0 && t < vid.duration) {
+    if (Math.abs(vid.currentTime - t) > 0.2) vid.currentTime = t;
+    if (vid.paused) { vid.playbackRate = 1; vid.play().catch(() => {}); }
+  } else if (!vid.paused) vid.pause();
+}
+setInterval(syncVideo, 250);
+
+function lock(n) { $("c" + n).classList.add("locked"); }
+function unlock(n) { $("c" + n).classList.remove("locked"); }
+function done(n) { $("c" + n).classList.add("done"); }
+
+// ---------- editing a saved dance ----------
+const editSlug = new URLSearchParams(location.search).get("slug");
+if (editSlug) {
+  const d = await fetch(`/api/library/${editSlug}`).then(r => r.ok ? r.json() : null);
+  if (d?.choreo) {
+    slug = editSlug; choreo = d.choreo; savedSlug = editSlug; fileName = d.choreo.song?.file || "";
+    $("title").value = choreo.title; $("fileRow").hidden = false; drop.hidden = true;
+    $("fileInfo").innerHTML = `<span class="busy"></span>loading the song…`;
+    try {
+      const buf = await fetch(`/library/${slug}/song`).then(r => { if (!r.ok) throw new Error("song missing"); return r.arrayBuffer(); });
+      await analyse(buf, { bpm: choreo.song.bpm, downbeat: choreo.song.first_downbeat_s, phrases: choreo.phrases.length, bpc: choreo.beats_per_count });
+      audio.src = `/library/${slug}/song`; audio.dataset.url = audio.src;
+      $("fileInfo").textContent = `${fileName} · ${fmt(A.duration_s)}`;
+      unlock(2); unlock(3); unlock("v"); unlock(4); done(1); done(3);
+      if (choreo.learned?.phrases) {                     // a dance learned from a video: bring the video and its moves back
+        const L = choreo.learned, idx = Object.keys(L.phrases).map(Number).sort((a, b) => a - b);
+        V.tracks = choreo.phrases.map((_, i) => L.phrases[String(i)] || null);
+        V.offset = L.video?.offset_s ?? 0; V.sure = null; $("vMirror").checked = !!L.video?.mirrored;
+        if (idx.length) { V.applied = [idx[0] + 1, idx[idx.length - 1] + 1]; $("vFrom").value = idx[0] + 1; $("vTo").value = idx[idx.length - 1] + 1; $("b-unapply").hidden = false; $("b-apply").disabled = false; }
+        $("vState").textContent = `learned ${idx.length} phrases`; $("vState").className = "pill ok";
+        const has = await fetch(`/library/${slug}/video`, { headers: { Range: "bytes=0-0" } }).then(r => r.ok).catch(() => false);
+        if (has) { vid.src = `/library/${slug}/video`; $("vdrop").hidden = true; $("b-vother").hidden = false; $("b-learn").disabled = false; }
+        showOffset();
+      }
+      await rebuild(true); savedSlug = editSlug;
+      $("b-again").hidden = false; $("b-gen").textContent = "Start over";
+    } catch (e) { $("fileInfo").innerHTML = `<span style="color:var(--err)">${esc(e.message || e)}: choose the song again</span>`; }
+  }
+}
+setLinks();
+</script>
+</body>
+</html>

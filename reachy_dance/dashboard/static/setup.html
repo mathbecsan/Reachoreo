@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set Up My Reachys · Reachoreo</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  main { max-width: 1200px; }
+  .wiz { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 20px; align-items: start; }
+  .steps { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 70px; }
+  .steps button { display: flex; gap: 12px; align-items: center; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-weight: 600; }
+  .steps button .num { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; background: var(--panel2); border: 1px solid var(--line); flex: none; }
+  .steps button.on { border-color: var(--a); background: #7fe3ff10; }
+  .steps button.ok .num { background: var(--ok); color: #06210f; border-color: var(--ok); }
+  .steps button small { display: block; color: var(--dim); font-weight: 400; font-size: 12px; }
+  .pane { display: none; } .pane.on { display: flex; flex-direction: column; gap: 14px; }
+  .pane h2 { font-size: 24px; } .pane p { margin: 0; color: var(--dim); max-width: 720px; }
+  .answers { display: flex; gap: 10px; flex-wrap: wrap; }
+  .answers button { font-size: 15px; padding: 10px 16px; }
+  .say { font-size: 18px; font-weight: 700; }
+  .list { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .list div { display: flex; gap: 10px; align-items: center; }
+  .list .why { margin-left: auto; color: var(--dim); font-size: 12px; text-align: right; }
+  .msg { min-height: 1.4em; font-size: 14px; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--err); } .msg.warn { color: var(--warn); }
+  .stage { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center; font-size: 13px; color: var(--dim); max-width: 560px; }
+  .stage div { background: var(--panel2); border-radius: 10px; padding: 12px 6px; }
+  .stage b { display: block; color: var(--text); font-size: 15px; }
+  .cams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cams figure { margin: 0; background: #000; border-radius: 12px; overflow: hidden; position: relative; aspect-ratio: 16 / 9; }
+  .cams video { width: 100%; height: 100%; object-fit: cover; }
+  .cams figcaption { position: absolute; left: 10px; top: 8px; font-weight: 800; text-shadow: 0 1px 6px #000; }
+  .frame { position: relative; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; max-width: 760px; }
+  .frame video { width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+  .frame .guide { position: absolute; inset: 8% 30%; border: 2px dashed #f2b544aa; border-radius: 12px; }
+  .frame .guide span { position: absolute; top: -24px; left: 0; right: 0; text-align: center; color: #f2b544; font-size: 12px; font-weight: 700; }
+  .done { text-align: center; padding: 30px 10px; }
+  .done .big { font-size: 46px; }
+  select { max-width: 340px; }
+  @media (max-width: 860px) { .wiz { grid-template-columns: 1fr; } .steps { position: static; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Set up my Reachys</h1>
+  <p class="lead">Six short steps, about five minutes. Each one checks something on the real robots and fixes it for you. Nothing to edit by hand.</p>
+  <div class="wiz">
+    <nav class="steps" id="steps"></nav>
+    <section class="card">
+      <!-- 1 -->
+      <div class="pane" data-step="found">
+        <h2>1 · Connect and find the robots</h2>
+        <p>Plug both Reachy Minis into this computer with their USB cables and switch them on. The page lists what it finds and starts the software each robot needs.</p>
+        <div class="list" id="usb"></div>
+        <div id="pairBox" hidden class="row">
+          <span>Reachy 1 (camera's left)</span><select id="selA"></select>
+          <span>Reachy 2 (camera's right)</span><select id="selB"></select>
+          <button class="go" id="b-assign">Use these two</button>
+        </div>
+        <div class="list" id="procs"></div>
+        <div class="row"><button class="go" id="b-up">Start everything</button><button class="ghost" id="b-rescan">Look again</button></div>
+        <div class="msg" id="m-found"></div>
+      </div>
+      <!-- 2 -->
+      <div class="pane" data-step="paired">
+        <h2>2 · Which one is on which side?</h2>
+        <p>Put the robots where they'll dance, facing the camera. Seen from the camera (the audience), <b>Reachy 1 sits on the LEFT</b> and <b>Reachy 2 on the RIGHT</b>.</p>
+        <div class="stage"><div><b>Reachy 1</b>camera's left</div><div><b>you</b>in the middle</div><div><b>Reachy 2</b>camera's right</div></div>
+        <div class="row"><button class="go" id="b-wiggle">Wiggle Reachy 1</button></div>
+        <div class="say" id="q-paired" hidden>Which robot wiggled its antennas?</div>
+        <div class="answers" id="a-paired" hidden>
+          <button class="go" data-a="left">The one on the LEFT ✓</button><button data-a="right">The one on the RIGHT</button><button class="ghost" data-a="none">Nothing moved</button>
+        </div>
+        <div class="msg" id="m-paired"></div>
+      </div>
+      <!-- 3 -->
+      <div class="pane" data-step="directions">
+        <h2>3 · Do they move the right way?</h2>
+        <p>Three quick moves. Watch both robots from the camera's side and answer. A wrong answer fixes itself, and the move plays again so you can check.</p>
+        <div class="say" id="q-dir"></div>
+        <div class="row"><button class="go" id="b-show">Show me</button></div>
+        <div class="answers" id="a-dir" hidden></div>
+        <div class="msg" id="m-dir"></div>
+      </div>
+      <!-- 4 -->
+      <div class="pane" data-step="timing">
+        <h2>4 · Land on the beat</h2>
+        <p>Motors take a moment to get somewhere, and no two robots are exactly alike. Both Reachys dance two phrases of the loaded dance while the page measures when their moves actually land, then gives each one the head start it needs. Stand back and let them dance.</p>
+        <div class="row"><button class="go" id="b-timing">Run the timing test</button></div>
+        <div class="say" id="q-timing"></div>
+        <div class="msg" id="m-timing"></div>
+      </div>
+      <!-- 5 -->
+      <div class="pane" data-step="cameras">
+        <h2>5 · Match the head cameras</h2>
+        <p>Each Reachy has a camera in its head, and both look the same to the browser. Reachy 1 will nod; the view that moves is its camera.</p>
+        <div class="cams"><figure><video id="camX" muted playsinline></video><figcaption id="capX">camera 1</figcaption></figure>
+          <figure><video id="camY" muted playsinline></video><figcaption id="capY">camera 2</figcaption></figure></div>
+        <div class="row"><button class="go" id="b-cams">Find which is which</button><button class="ghost" id="b-camswap" hidden>They're the other way round</button><button class="ghost" id="b-camskip">My Reachys have no head cameras</button></div>
+        <div class="msg" id="m-cams"></div>
+      </div>
+      <!-- 6 -->
+      <div class="pane" data-step="framing">
+        <h2>6 · Frame yourself</h2>
+        <p>Choose the camera that will film you (usually the laptop's), and stand where you'll dance. Your head to your hips should fit inside the gold box with room for your arms. If you want the robots in the shot, they go at the edges of the picture.</p>
+        <div class="row"><select id="camPick"></select><button class="go" id="b-mycam">Turn on my camera</button></div>
+        <div class="frame"><video id="mycam" muted playsinline></video><div class="guide"><span>you, from the head to the hips</span></div></div>
+        <div class="row"><button class="go" id="b-framed">I fit in the box</button></div>
+        <div class="msg" id="m-framing"></div>
+      </div>
+      <!-- done -->
+      <div class="pane" data-step="done">
+        <div class="done"><div class="big">✓</div><h2>Ready to dance</h2>
+          <p style="margin:8px auto 18px">Both robots know their sides, move the right way, land on the beat and have their cameras matched. Home checks this every time you open it.</p>
+          <div class="row" style="justify-content:center"><a href="/create"><button class="go big">Make a dance from a song</button></a><a href="/perform"><button class="big">Rehearse →</button></a></div>
+          <p style="margin-top:18px"><button class="ghost small" id="b-reset">Run the whole setup again</button></p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+import { mountNav, post, toast, startEverything } from "/static/nav.mjs";
+mountNav("home");
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const STEPS = [["found", "Connect", "find both robots"], ["paired", "Left or right", "which is which"], ["directions", "Directions", "turn, look up, antennas"],
+               ["timing", "Timing", "land on the beat"], ["cameras", "Head cameras", "match their views"], ["framing", "Your camera", "frame yourself"]];
+let S = null, cur = null;
+
+async function status() { S = await fetch("/api/setup/status").then(r => r.json()); return S; }
+const done = k => k === "found" ? S.checks.find(c => c.key === "running")?.ok && S.checks.find(c => c.key === "robots")?.ok : !!S.state[k]?.ok;
+function drawSteps() {
+  $("steps").innerHTML = STEPS.map(([k, t, sub], i) => `<button data-k="${k}" class="${k === cur ? "on" : ""} ${done(k) ? "ok" : ""}"><span class="num">${done(k) ? "✓" : i + 1}</span><span>${t}<small>${sub}</small></span></button>`).join("");
+  $("steps").querySelectorAll("button").forEach(b => b.onclick = () => go(b.dataset.k));
+}
+function go(k) {
+  cur = k; document.querySelectorAll(".pane").forEach(p => p.classList.toggle("on", p.dataset.step === k)); drawSteps();
+  ({ found: showFound, directions: showDir, cameras: showCams, framing: showFraming }[k] || (() => {}))();
+}
+function next() {
+  const k = STEPS.find(([key]) => !done(key))?.[0];
+  go(k || "done");
+}
+const say = (id, txt, cls = "") => { $(id).textContent = txt; $(id).className = "msg " + cls; };
+async function mark(step, ok = true, extra) { await post("/api/setup/mark", { step, ok, extra }); await status(); drawSteps(); }
+
+// ---------- 1. connect ----------
+async function showFound() {
+  await status();
+  const sc = S.scan, usb = sc.usb;
+  $("usb").innerHTML = usb.length ? usb.map(u => `<div><span class="dot ${u.daemon_up ? "on" : "warn"}"></span><code>${esc(u.serial)}</code>
+      <span class="why">${u.assigned ? `Reachy ${u.assigned === "A" ? 1 : 2}` : "not paired yet"} · ${u.daemon_up ? `connected (port ${u.daemon_port})` : "not started"}</span></div>`).join("")
+    : `<div><span class="dot"></span>No Reachy found on USB. Check the cable and that the robot is switched on${sc.config.A.host !== "localhost" ? " (or that it's on the same Wi-Fi)" : ""}.</div>`;
+  const paired = "AB".split("").every(s => usb.some(u => u.serial === sc.config[s].serial));
+  $("pairBox").hidden = paired || usb.length < 2;
+  if (!paired && usb.length >= 2) {
+    const opts = usb.map(u => `<option>${esc(u.serial)}</option>`).join("");
+    $("selA").innerHTML = opts; $("selB").innerHTML = opts; $("selB").selectedIndex = 1;
+  }
+  $("procs").innerHTML = S.procs_list.map(p => `<div><span class="dot ${p.running ? "on" : ""}"></span>${esc(p.label)}<span class="why">${p.running ? "running" : p.can_start ? "off" : esc(p.why_not)}</span></div>`).join("");
+  const ok = done("found");
+  say("m-found", ok ? "Both robots are connected and listening. Next: check which is which." : usb.length < 2 ? "Waiting for two robots on USB." : "Press Start everything.", ok ? "ok" : "warn");
+  drawSteps();
+  if (ok) { $("b-up").textContent = "Next →"; $("b-up").onclick = () => { mark("found"); go("paired"); }; }
+  else { $("b-up").textContent = "Start everything"; $("b-up").onclick = async () => {
+    await startEverything();
+    for (let i = 0; i < 20 && !done("found"); i++) { await sleep(1500); await status(); }   // robots take a few seconds to wake up
+    showFound();
+  }; }
+}
+$("b-rescan").onclick = showFound;
+$("b-assign").onclick = async () => {
+  const r = await post("/api/setup/assign", { A: $("selA").value, B: $("selB").value });
+  say("m-found", r.msg, r.ok ? "ok" : "err"); setTimeout(showFound, 5000);
+};
+
+// ---------- 2. left or right ----------
+const move = (side, action) => post("/api/setup/move", { side, action });
+$("b-wiggle").onclick = async () => {
+  const r = await move("A", "wiggle");
+  if (!r.ok) return say("m-paired", r.msg, "err");
+  $("q-paired").hidden = $("a-paired").hidden = false; say("m-paired", "");
+};
+$("a-paired").querySelectorAll("button").forEach(b => b.onclick = async () => {
+  const a = b.dataset.a;
+  if (a === "left") { await mark("paired"); say("m-paired", "Paired. Next: directions.", "ok"); setTimeout(() => go("directions"), 700); }
+  else if (a === "right") {
+    say("m-paired", "Swapping Reachy 1 and Reachy 2… (the agents restart, a few seconds)", "warn");
+    const r = await post("/api/setup/swap", {});
+    if (!r.ok) return say("m-paired", r.msg, "err");
+    for (let i = 0; i < 20; i++) { await sleep(700); await status(); if (S.checks.find(c => c.key === "running").ok) break; }
+    say("m-paired", "Swapped. Watch again:", "ok"); await sleep(1500); move("A", "wiggle");
+  } else {
+    await status();
+    say("m-paired", S.checks.find(c => c.key === "running").ok ? "Both agents are running but nothing moved: is the robot awake (not in sleep mode) and its USB cable data-capable? Try Wiggle again." : "A robot isn't connected: go back to step 1.", "err");
+  }
+});
+
+// ---------- 3. directions ----------
+const DIRS = [
+  { action: "turn_right", q: "Did both heads turn toward the camera's RIGHT (toward Reachy 2's side)?",
+    answers: [["yes", "Yes ✓"], ["turn", "No, toward the left"]] },
+  { action: "look_up", q: "Did both robots look UP?", answers: [["yes", "Yes ✓"], ["pitch", "No, they looked down"]] },
+  { action: "left_antenna_up", q: "Did the antenna on the camera's LEFT go up and out (on both robots)?",
+    answers: [["yes", "Yes ✓"], ["antenna_side", "No, the other antenna moved"], ["antenna_dir", "It went down or inward"]] },
+];
+let dirI = 0;
+function showDir() {
+  const d = DIRS[dirI];
+  $("q-dir").textContent = d ? `${dirI + 1}/3 · ${d.q}` : "All three moves are right.";
+  $("a-dir").hidden = true; $("b-show").hidden = !d;
+  $("a-dir").innerHTML = d ? d.answers.map(([k, t]) => `<button class="${k === "yes" ? "go" : ""}" data-k="${k}">${t}</button>`).join("") : "";
+  $("a-dir").querySelectorAll("button").forEach(b => b.onclick = () => answerDir(b.dataset.k));
+}
+$("b-show").onclick = async () => {
+  const r = await move("both", DIRS[dirI].action);
+  if (!r.ok) return say("m-dir", r.msg, "err");
+  say("m-dir", ""); $("a-dir").hidden = false;
+};
+async function answerDir(k) {
+  if (k === "yes") {
+    dirI++; say("m-dir", "", "");
+    if (dirI >= DIRS.length) { await mark("directions"); say("m-dir", "Directions checked. Next: timing.", "ok"); showDir(); setTimeout(() => go("timing"), 900); }
+    else showDir();
+    return;
+  }
+  const r = await post("/api/setup/flip", { what: k });
+  say("m-dir", r.ok ? `${r.msg}. Watch again:` : r.msg, r.ok ? "warn" : "err");
+  if (r.ok) { await sleep(400); move("both", DIRS[dirI].action); }
+}
+
+// ---------- 4. timing ----------
+$("b-timing").onclick = async () => {
+  await status();
+  const n = S.phrases, a = S.choreo === "encendido" ? 13 : Math.max(1, Math.floor(n / 2)), b = Math.min(n, a + 1);
+  $("b-timing").disabled = true;
+  const r = await post("/api/cmd", { cmd: `start ${a} ${b}` });
+  if (!r.ok) { $("b-timing").disabled = false; return say("m-timing", r.msg, "err"); }
+  $("q-timing").textContent = "Dancing… (about 15 seconds)"; say("m-timing", "");
+  let ran = false;
+  for (let i = 0; i < 80; i++) {
+    await sleep(500);
+    const st = await fetch("/api/state").then(x => x.json());
+    if (st.clock.state === "playing") ran = true;
+    if (ran && (st.clock.state === "ended" || st.clock.state === "idle")) break;
+  }
+  await sleep(800);
+  const t = await post("/api/tune", { apply: true });
+  $("b-timing").disabled = false;
+  if (!t.ok) { $("q-timing").textContent = ""; return say("m-timing", t.msg, "err"); }
+  const P = t.proposal, words = s => P[s].landed_ms == null ? "not measured" : `landed ${P[s].landed_ms > 0 ? "+" : ""}${P[s].landed_ms} ms ${P[s].landed_ms >= 0 ? "after" : "before"} the count`;
+  const close = ["A", "B"].every(s => P[s].landed_ms != null && Math.abs(P[s].landed_ms) <= 40);
+  $("q-timing").textContent = `Reachy 1 ${words("A")} · Reachy 2 ${words("B")}`;
+  if (close) { await mark("timing", true, { A_ms: P.A.landed_ms, B_ms: P.B.landed_ms }); say("m-timing", "Both land on the beat. Next: head cameras.", "ok"); setTimeout(() => go("cameras"), 1500); }
+  else { say("m-timing", `Adjusted: Reachy 1 now moves ${Math.round(P.A.new_s * 1000)} ms early, Reachy 2 ${Math.round(P.B.new_s * 1000)} ms early. Run the test again to confirm.`, "warn"); $("b-timing").textContent = "Run it again"; }
+};
+
+// ---------- 5. head cameras ----------
+let heads = [], streams = {};
+const povMap = () => { try { return JSON.parse(localStorage.getItem("encendido.povMap") || "{}"); } catch { return {}; } };
+const savePov = m => { try { localStorage.setItem("encendido.povMap", JSON.stringify(m)); } catch {} };
+async function showCams() {
+  let devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+  if (!devs.some(d => d.label)) { try { (await navigator.mediaDevices.getUserMedia({ video: true })).getTracks().forEach(t => t.stop()); } catch { return say("m-cams", "Allow camera access to match the head cameras.", "err"); } devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput"); }
+  heads = devs.filter(d => /reachy/i.test(d.label));
+  if (heads.length < 2) return say("m-cams", heads.length ? "Only one Reachy camera found: check the other robot's USB cable." : "No Reachy head cameras found. If yours have none, press the last button.", "warn");
+  for (const [vid, d] of [["camX", heads[0]], ["camY", heads[1]]]) {
+    if (!streams[d.deviceId]) streams[d.deviceId] = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId }, width: { ideal: 640 } } });
+    $(vid).srcObject = streams[d.deviceId]; $(vid).play();
+  }
+  labelCams();
+}
+function labelCams() {
+  const m = povMap();
+  $("capX").textContent = m.A === heads[0]?.deviceId ? "Reachy 1 sees" : m.B === heads[0]?.deviceId ? "Reachy 2 sees" : "camera 1";
+  $("capY").textContent = m.A === heads[1]?.deviceId ? "Reachy 1 sees" : m.B === heads[1]?.deviceId ? "Reachy 2 sees" : "camera 2";
+}
+// how much a video changes between frames (a nodding robot's view moves a lot)
+function motionMeter(video) {
+  const c = document.createElement("canvas"); c.width = 64; c.height = 36; const g = c.getContext("2d", { willReadFrequently: true });
+  let prev = null, sum = 0;
+  return { sample() { g.drawImage(video, 0, 0, 64, 36); const d = g.getImageData(0, 0, 64, 36).data; if (prev) { let s = 0; for (let i = 0; i < d.length; i += 4) s += Math.abs(d[i] - prev[i]) + Math.abs(d[i + 1] - prev[i + 1]); sum += s; } prev = d; }, get total() { return sum; } };
+}
+$("b-cams").onclick = async () => {
+  if (heads.length < 2) return showCams();
+  const mx = motionMeter($("camX")), my = motionMeter($("camY"));
+  const r = await move("A", "nod"); if (!r.ok) return say("m-cams", r.msg, "err");
+  say("m-cams", "Reachy 1 is nodding… watching both views", "warn");
+  const t0 = performance.now(); while (performance.now() - t0 < 2400) { mx.sample(); my.sample(); await sleep(60); }
+  const ratio = Math.max(mx.total, my.total) / Math.max(1, Math.min(mx.total, my.total));
+  const a = mx.total > my.total ? heads[0] : heads[1], b = a === heads[0] ? heads[1] : heads[0];
+  savePov({ A: a.deviceId, B: b.deviceId }); labelCams();
+  if (ratio < 1.5) say("m-cams", "Both views moved about the same (or neither did), so this is a guess. Check the labels, swap them if needed, then press Next.", "warn");
+  else { say("m-cams", "Matched. The rehearsal page will show each robot's own view.", "ok"); await mark("cameras", true); setTimeout(() => go("framing"), 1500); }
+  $("b-camswap").hidden = false;
+};
+$("b-camswap").onclick = async () => { const m = povMap(); savePov({ A: m.B, B: m.A }); labelCams(); await mark("cameras", true); say("m-cams", "Swapped.", "ok"); };
+$("b-camskip").onclick = async () => { await mark("cameras", true, { none: true }); go("framing"); };
+
+// ---------- 6. your camera ----------
+let myStream = null;
+async function showFraming() {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput" && !/reachy/i.test(d.label));
+  $("camPick").innerHTML = devs.map(d => `<option value="${d.deviceId}">${esc(d.label || "camera")}</option>`).join("") || `<option value="">default camera</option>`;
+}
+$("b-mycam").onclick = async () => {
+  myStream?.getTracks().forEach(t => t.stop());
+  try {
+    myStream = await navigator.mediaDevices.getUserMedia({ video: { ...( $("camPick").value ? { deviceId: { exact: $("camPick").value } } : {}), width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    $("mycam").srcObject = myStream; $("mycam").play();
+    try { localStorage.setItem("reachy.myCamera", $("camPick").value); } catch {}
+  } catch (e) { say("m-framing", `Camera unavailable: ${e.message || e}`, "err"); }
+};
+$("b-framed").onclick = async () => { await mark("framing", true); myStream?.getTracks().forEach(t => t.stop()); Object.values(streams).forEach(s => s.getTracks().forEach(t => t.stop())); go("done"); };
+$("b-reset").onclick = async () => { await post("/api/setup/reset", {}); dirI = 0; await status(); next(); };
+
+await status(); drawSteps(); next();
+setInterval(async () => { await status(); drawSteps(); }, 4000);
+</script>
+</body>
+</html>
