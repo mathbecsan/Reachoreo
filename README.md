@@ -122,6 +122,80 @@ Give each robot a fixed IP and put both in `config/show.yaml` (A = camera's left
 Wireless Reachy Minis can all be driven from one laptop. Two Lites over USB need their own daemons,
 one per laptop or on different ports.
 
+## 3D rehearsal (`/rehearse`, in progress)
+
+A life-size 3D / VR / AR practice mode, built with three.js, TypeScript and Vite in `xr/`, served by the dashboard at
+http://localhost:8080/rehearse (tab "3D / VR"). Milestones 1 to 4 are done:
+- the kitchen and both Reachys perform the full score at true scale (about 28 cm tall, 2.5 m apart), on the Web Audio
+  clock, with the preview's light arc;
+- a life-size coach dances your part 3 m in front of you, mirrored by default (it moves like your reflection; untick
+  *mirror* to see the dance as written), with a hood in Acts I–II;
+- the moves lane shows upcoming pictograms (drawn from the coach's own pose) reaching the NOW line on their count;
+  the five gold moves are highlighted;
+- practice: any phrase range, loop, 50 / 75 / 100 % speed (the music keeps its pitch), a 4-count lead-in before each
+  pass, and **Ghost**: your own body from the webcam, drawn see-through over the coach;
+- **scoring** (📷 Camera: on, then Calibrate standing where you'll dance): every move is rated PERFECT / SUPER / GOOD /
+  OK / X from your arm angles, head turn, torso lean (hips) and sideways position, mixed with whether you moved the same
+  way into it. The best match within ±150 ms of the move counts, so tracking lag costs nothing. Combo counter, running
+  points, a 5-star meter, gold moves count double, and a summary at the end of each pass. If the page stalls and no
+  camera frame lands near a move, that move isn't scored (it says so); walking out of view is an X.
+- **⏱ tap test**: tap along to 16 clicks; the median offset lines the page up with what you hear (saved per browser).
+- **VR and AR on a Quest 3** (the **AR** and **VR** buttons appear on a headset). See *On the Quest* below.
+URL options: `?t=30` (freeze at 0:30), `&compare=1` (the 2D preview beside it), `&mirror=0`,
+`?sim=copy|still` (a simulated dancer instead of the webcam), with `&from=12&to=13&autoplay=1`,
+`?emulate=quest3` (an emulated Quest 3, see below).
+Screenshots: `docs/rehearse-m1/` to `docs/rehearse-m4/`.
+
+### On the Quest
+
+WebXR needs a secure page. Two ways to open it in the Meta Quest Browser (no app install):
+
+1. **USB cable (simplest, no certificate).** Turn on developer mode for the headset (Meta Horizon app), plug it in, then:
+   ```bash
+   adb reverse tcp:8080 tcp:8080
+   ```
+   and open `http://localhost:8080/rehearse` in the Quest Browser (localhost counts as secure).
+2. **Same Wi-Fi.** Start the dashboard with a self-signed certificate (made once with openssl, in `config/certs/`, gitignored):
+   ```bash
+   python -m reachy_dance.dashboard --https --host 0.0.0.0
+   ```
+   It prints the address to open on the Quest (`https://<this computer>:8080/rehearse`). The browser warns once about
+   the certificate: Advanced → Proceed.
+
+**AR (passthrough) is the default, for the kitchen.** You see the real room. The first time, point at (or touch) the counter
+at Reachy 1's base (on your left as you face the counter) and pinch or pull the trigger, then Reachy 2's: the virtual
+robots stand exactly on the real ones, and the coach dances about 3 m in front of you. The placement is saved with
+WebXR anchors (persistent on the Quest), so next time it comes back by itself (menu → Re-place if it's off). Pointing
+uses the Quest's hit test, which needs your room set up (Settings → Physical space → Space setup); touching always works.
+
+**VR (the whole virtual kitchen) only in a cleared space with your Guardian boundary set.** It reads the boundary and
+says how much clear floor you have (it wants 1 m all around); with no boundary it warns you. It puts you on the
+audience mark, 3 m from the coach (menu → Recentre).
+
+**Safety**: a check comes before every run (including a resume). **Pause any time**: pinch (or pull the trigger) and
+hold for half a second, or squeeze the grip. Taking the headset off or opening the system menu pauses too.
+
+**Scoring in the headset** uses your head and both hands (controllers or hand tracking), compared with the coach's head
+and wrists relative to your body: menu → **Calibrate** and hold a T-pose for 3 seconds (your spot, facing and arm span).
+Without it, it estimates your arm span from your height. A simulated Quest dancer copying the coach scores 100 %
+PERFECT or SUPER, standing still 1 % (`tests/xr_score_sim.mjs`).
+
+**Frame rate**: it asks for 90 Hz. Every run through phrases 13 to 18 at full speed is timed in the headset; the result
+shows at the bottom of the menu and is appended to `logs/xr-perf.jsonl` on this computer (the brief's ≥ 72 fps test).
+Budget per stereo frame: 247k triangles and 90 draw calls (45 per eye); the page is a 4.5 MB download.
+
+**Testing without a headset**: `/rehearse?emulate=quest3` installs Meta's IWER (the runtime inside the Immersive Web
+Emulator extension) in the page: an emulated Quest 3 with controllers and hands, anchors and hit test.
+
+```bash
+cd xr && npm install && npm run build      # builds into reachy_dance/dashboard/static/rehearse/ (gitignored)
+npm run dev                                # or: live dev server, with the dashboard behind it on :8080
+npm run assets:reachy                      # rebuild the robot model from Pollen's Blender rig (needs Blender 5.1 + Git LFS)
+```
+
+The robots move through the same generated choreography module as the 2D pages, and `xr/src/sdk.ts` (a port of
+`pose.to_sdk`) is tested against Python, so the 3D robots match the real ones. Assets and licenses: `ASSETS.md`.
+
 ## Quick start: one command, then the browser
 
 ```bash

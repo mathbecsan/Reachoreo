@@ -35,7 +35,7 @@ STATIC = Path(__file__).resolve().parent / "static"
 MODELS = ROOT / "models"
 ALLOWED = ("start", "pause", "resume", "stop", "load")
 PAGES = {"/": "home.html", "/index.html": "home.html", "/control": "index.html", "/perform": "perform.html",
-         "/perform.html": "perform.html", "/create": "create.html", "/setup": "setup.html"}
+         "/perform.html": "perform.html", "/create": "create.html", "/setup": "setup.html", "/rehearse": "rehearse/index.html"}
 MAX_SONG_BYTES = 80_000_000
 MAX_VIDEO_BYTES = 1_500_000_000
 TYPES = {".mjs": "text/javascript", ".js": "text/javascript", ".wasm": "application/wasm", ".task": "application/octet-stream",
@@ -317,14 +317,18 @@ def make_handler(app: Dashboard):
         def do_GET(self):
             path = self.path.split("?")[0]
             if path in PAGES:
-                self._send(200, (STATIC / PAGES[path]).read_bytes(), "text/html; charset=utf-8")
+                page = STATIC / PAGES[path]
+                if not page.exists():            # /rehearse is built from xr/ with Vite
+                    return self._send(200, b"<!doctype html><meta charset=utf-8><body style='font:16px sans-serif;background:#0d0c1c;color:#ede9ff;padding:40px'>"
+                                      b"<h2>The 3D rehearsal isn't built yet</h2><p>Run once:</p><pre>cd xr\nnpm install\nnpm run build</pre>", "text/html; charset=utf-8")
+                self._send(200, page.read_bytes(), "text/html; charset=utf-8")
             elif path == "/api/library":
                 self._json({"items": library.listing(), "active": app.choreo})
             elif path.startswith("/api/library/"):
                 slug = path.rsplit("/", 1)[1]
                 if slug == "encendido":
                     sc, sh = load_choreography("encendido")
-                    return self._json({"builtin": True, "timeline": timeline(sc, sh)})
+                    return self._json({"builtin": True, "timeline": timeline(sc, sh, app.cfg.get("calibration"))})
                 if not library.exists(slug):
                     return self._send(404, b"not found", "text/plain")
                 self._json({"builtin": False, "choreo": library.load(slug)})
@@ -428,6 +432,15 @@ def make_handler(app: Dashboard):
                 self._json(app.camera.on_frame(body.get("lm")))
             elif self.path == "/api/calibrate":
                 self._json(app.camera.calibrate())
+            elif self.path == "/api/xr/perf":
+                # the headset's frame-rate measurement of phrases 13-18 (the brief's Quest acceptance test), one per line
+                if not isinstance(body, dict) or "fps_avg" not in body:
+                    return self._json({"ok": False, "msg": "expected a perf record"}, 400)
+                path = ROOT / "logs" / "xr-perf.jsonl"
+                path.parent.mkdir(exist_ok=True)
+                with path.open("a") as f:
+                    f.write(json.dumps(body) + "\n")
+                self._json({"ok": True})
             elif self.path == "/api/generate":
                 try:
                     ch = library.generate(body["analysis"], body.get("title", "My song"), body.get("seed"))
@@ -559,11 +572,41 @@ def stamp() -> str:
     return time.strftime("reachoreo-log-%Y%m%d-%H%M%S")
 
 
+def lan_address() -> str | None:
+    """This computer's address on the local network (no packet is sent: a UDP connect only picks the route)."""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
+def ensure_certificate(folder: Path) -> tuple[Path, Path]:
+    """A self-signed certificate for localhost and this computer's LAN address, made once with openssl (gitignored)."""
+    import subprocess
+    folder.mkdir(parents=True, exist_ok=True)
+    cert, key = folder / "dashboard.crt", folder / "dashboard.key"
+    lan = lan_address()
+    names = "DNS:localhost,IP:127.0.0.1" + (f",IP:{lan}" if lan else "")
+    stamp_file = folder / "names.txt"
+    if not (cert.exists() and key.exists() and stamp_file.exists() and stamp_file.read_text() == names):
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "825", "-keyout", str(key),
+                        "-out", str(cert), "-subj", "/CN=Reachoreo dashboard", "-addext", f"subjectAltName={names}"],
+                       check=True, capture_output=True)
+        stamp_file.write_text(names)
+    return cert, key
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Serve the show control dashboard.")
     ap.add_argument("--config", default=None)
     ap.add_argument("--port", type=int, default=None)
     ap.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to open it from another device")
+    ap.add_argument("--https", action="store_true",
+                    help="serve over HTTPS with a self-signed certificate (config/certs/), for a Quest on the same Wi-Fi: "
+                         "WebXR needs a secure page. With a USB cable, `adb reverse tcp:8080 tcp:8080` needs no certificate.")
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
     port = args.port or cfg.get("dashboard", {}).get("http_port", 8080)
@@ -572,7 +615,16 @@ def main(argv=None):
     threading.Thread(target=app.pump, daemon=True).start()
     srv = ThreadingHTTPServer((args.host, port), make_handler(app))
     srv.daemon_threads = True
-    print(f"Dashboard on http://localhost:{port}")
+    if args.https:
+        import ssl
+        cert, key = ensure_certificate(ROOT / "config" / "certs")
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain(cert, key)
+        srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+        lan = lan_address()
+        print(f"Dashboard on https://localhost:{port}" + (f"  ·  on your Quest: https://{lan}:{port}/rehearse" if args.host == "0.0.0.0" and lan else ""))
+        print("  (self-signed: the browser warns once; choose Advanced → Proceed)", flush=True)
+    else:
+        print(f"Dashboard on http://localhost:{port}", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

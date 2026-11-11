@@ -11,3 +11,11 @@ runs/
 library/*/song.*
 library/*/video.*
 config/setup.json
+
+# 3D rehearsal: third-party sources and private files (see ASSETS.md)
+assets-src/
+assets-private/
+xr/node_modules/
+reachy_dance/dashboard/static/rehearse/
+config/certs/
+logs/

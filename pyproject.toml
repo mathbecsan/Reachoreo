@@ -24,3 +24,6 @@ reachy_dance = ["choreography/*.yaml", "choreography/*.json", "dashboard/static/
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

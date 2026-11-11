@@ -28,7 +28,7 @@ const CSS = `
 @media (max-width: 900px) { .topnav .chip.robot, .topnav .chip.clock { display: none; } }
 `;
 
-const TABS = [["home", "/", "Home"], ["create", "/create", "Make a dance"], ["perform", "/perform", "Rehearse & record"], ["control", "/control", "Control room"]];
+const TABS = [["home", "/", "Home"], ["create", "/create", "Make a dance"], ["perform", "/perform", "Rehearse & record"], ["rehearse3d", "/rehearse", "3D / VR"], ["control", "/control", "Control room"]];
 
 export function toast(msg, ms = 3500) {
   let el = document.querySelector(".navtoast");
@@ -71,7 +71,7 @@ export function mountNav(active) {
   const style = document.createElement("style"); style.textContent = CSS; document.head.appendChild(style);
   const nav = document.createElement("nav"); nav.className = "topnav";
   nav.innerHTML = `<a class="brand" href="/"><i></i>Reachoreo</a>` +
-    TABS.map(([k, href, label], i) => `<a class="tab ${k === active ? "on" : ""}" href="${href}">${k === "control" ? "" : `<span class="n">${i || "⌂"}</span>`}${label}</a>`).join("").replace('<span class="n">⌂</span>', "") +
+    TABS.map(([k, href, label], i) => `<a class="tab ${k === active ? "on" : ""}" href="${href}">${k === "control" || k === "rehearse3d" ? "" : `<span class="n">${i || "⌂"}</span>`}${label}</a>`).join("").replace('<span class="n">⌂</span>', "") +
     `<span class="sp"></span>
      <span class="chip" title="The dance loaded on the conductor and both robots">Dance <b id="nav-dance">…</b></span>
      <span class="chip clock" title="The conductor keeps the show clock"><span class="dot" id="nav-clock"></span>Clock</span>
